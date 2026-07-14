@@ -63,7 +63,7 @@
 | tk-TK         | Turkmen        |
 | [tr-TR](./tr-TR.json)         | Türkçe         |
 | [uk-UA](./uk-UA.json)         | Українська     |
-| ur-PK         | Oʻzbekcha      |
+| uz-UZ         | Oʻzbekcha      |
 | vi-VN         | Tiếng Việt     |
 | [zh-CN](./zh-CN.json)         | 简体中文       |
 | zh-HK         | 繁體中文（香港） |

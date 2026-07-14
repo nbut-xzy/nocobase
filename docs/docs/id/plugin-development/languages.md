@@ -96,7 +96,7 @@ NocoBase menyediakan dukungan multibahasa (i18n), berikut adalah daftar bahasa b
 | tk-TK | Turkmen              |
 | tr-TR | Türkçe               |
 | uk-UA | Українська           |
-| ur-PK | Oʻzbekcha            |
+| uz-UZ | Oʻzbekcha            |
 | vi-VN | Tiếng Việt           |
 | zh-CN | 简体中文                 |
 | zh-HK | 繁體中文（香港）             |

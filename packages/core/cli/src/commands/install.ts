@@ -189,7 +189,7 @@ const INSTALL_LANGUAGE_CODES = {
   'tk-TK': { label: 'Turkmen' },
   'tr-TR': { label: 'Türkçe' },
   'uk-UA': { label: 'Українська' },
-  'ur-PK': { label: 'Oʻzbekcha' },
+  'uz-UZ': { label: 'Oʻzbekcha' },
   'vi-VN': { label: 'Tiếng Việt' },
   'zh-CN': { label: '简体中文' },
   'zh-HK': { label: '繁體中文（香港）' },

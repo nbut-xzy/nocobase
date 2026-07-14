@@ -96,7 +96,7 @@ NocoBase provides multi-language support (i18n). Below is the list of currently 
 | tk-TK       | Turkmen                      |
 | tr-TR       | Türkçe                       |
 | uk-UA       | Українська                   |
-| ur-PK       | Oʻzbekcha                    |
+| uz-UZ       | Oʻzbekcha                    |
 | vi-VN       | Tiếng Việt                   |
 | zh-CN       | 简体中文                     |
 | zh-HK       | 繁體中文（香港）             |
@@ -120,4 +120,3 @@ If you need to add a new language:
 - [Server-side Internationalization](./server/i18n.md) — Server-side i18n multi-language configuration and usage
 - [Plugin Development Overview](./index.md) — Overall introduction to plugin development
 - [Write Your First Plugin](./write-your-first-plugin.md) — Create a plugin from scratch
-

@@ -90,7 +90,7 @@ NocoBase bietet Mehrsprachigkeit (i18n) an. Hier finden Sie eine Liste der aktue
 | tk-TK      | Turkmen                      |
 | tr-TR      | Türkçe                       |
 | uk-UA      | Українська                   |
-| ur-PK      | Oʻzbekcha                    |
+| uz-UZ      | Oʻzbekcha                    |
 | vi-VN      | Tiếng Việt                   |
 | zh-CN      | Vereinfachtes Chinesisch     |
 | zh-HK      | Traditionelles Chinesisch (Hongkong) |

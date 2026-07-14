@@ -96,7 +96,7 @@ NocoBase 提供了多语言支持（i18n），下面是当前内置的语言列�
 | tk-TK | Turkmen              |
 | tr-TR | Türkçe               |
 | uk-UA | Українська           |
-| ur-PK | Oʻzbekcha            |
+| uz-UZ | Oʻzbekcha            |
 | vi-VN | Tiếng Việt           |
 | zh-CN | 简体中文                 |
 | zh-HK | 繁體中文（香港）             |

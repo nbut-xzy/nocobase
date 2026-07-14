@@ -91,7 +91,7 @@ Chaque configuration linguistique se compose d'un **code de langue (Locale Code)
 | tk-TK          | Turkmen                      |
 | tr-TR          | Türkçe                       |
 | uk-UA          | Українська                   |
-| ur-PK          | Oʻzbekcha                    |
+| uz-UZ          | Oʻzbekcha                    |
 | vi-VN          | Tiếng Việt                   |
 | zh-CN          | Chinois simplifié            |
 | zh-HK          | Chinois traditionnel (Hong Kong) |

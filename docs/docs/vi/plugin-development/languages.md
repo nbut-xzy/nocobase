@@ -96,7 +96,7 @@ NocoBase cung cấp khả năng hỗ trợ đa ngôn ngữ (i18n). Dưới đây
 | tk-TK       | Turkmen              |
 | tr-TR       | Türkçe               |
 | uk-UA       | Українська           |
-| ur-PK       | Oʻzbekcha            |
+| uz-UZ       | Oʻzbekcha            |
 | vi-VN       | Tiếng Việt           |
 | zh-CN       | 简体中文              |
 | zh-HK       | 繁體中文（香港）       |

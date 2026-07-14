@@ -69,7 +69,7 @@ export const dayjsLocale = {
   'tk-TK': 'tk',
   'tr-TR': 'tr',
   'uk-UA': 'uk',
-  'ur-PK': 'ur',
+  'uz-UZ': 'uz-latn',
   'vi-VN': 'vi',
   'zh-CN': 'zh-cn',
   'zh-HK': 'zh-hk',
