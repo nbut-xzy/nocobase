@@ -7,10 +7,30 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { Plugin } from '@nocobase/client-v2';
+import { Application, Plugin } from '@nocobase/client-v2';
 
-export class PluginOnlyofficeClientV2 extends Plugin {
-  async load() {}
+export class PluginOnlyofficeClientV2 extends Plugin<any, Application> {
+  async load() {
+    this.flowEngine.registerModelLoaders({
+      OnlyOfficeBlockModel: {
+        loader: () => import('./models/OnlyOfficeBlockModel'),
+      },
+    });
+
+    this.pluginSettingsManager.addMenuItem({
+      key: 'onlyoffice',
+      title: this.t('OnlyOffice') as unknown as string,
+      icon: 'FileTextOutlined',
+    });
+
+    this.pluginSettingsManager.addPageTabItem({
+      menuKey: 'onlyoffice',
+      key: 'index',
+      title: this.t('Server Configuration') as unknown as string,
+      componentLoader: () => import('./pages/OnlyOfficeSettingsPage'),
+      sort: -1,
+    });
+  }
 }
 
 export default PluginOnlyofficeClientV2;
