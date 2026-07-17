@@ -15,6 +15,32 @@ import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import { runCallbackScript } from './callbackScriptRunner';
 
+/**
+ * 从请求上下文获取完整的 origin（scheme + host + port）。
+ * 优先取反向代理头（x-forwarded-proto / x-forwarded-host），
+ * 兼容 Koa 原生的 ctx.protocol / ctx.host。
+ */
+function getRequestOrigin(ctx: any): string {
+  const protocol = ctx.headers?.['x-forwarded-proto'] || ctx.protocol || ctx.request?.protocol || 'http';
+  const host = ctx.headers?.['x-forwarded-host'] || ctx.host || ctx.request?.host || '';
+  return host ? `${protocol}://${host}` : '';
+}
+
+/**
+ * 将相对 URL 补全为带 origin 的完整 URL。
+ * SPDX URL 等信息传输中不会被补全。
+ */
+function resolveFullUrl(fileUrl: string, ctx: any): string {
+  if (!fileUrl || /^https?:\/\//i.test(fileUrl)) {
+    return fileUrl;
+  }
+  const origin = getRequestOrigin(ctx);
+  if (!origin) {
+    return fileUrl;
+  }
+  return fileUrl.startsWith('/') ? `${origin}${fileUrl}` : `${origin}/${fileUrl}`;
+}
+
 export class PluginOnlyofficeServer extends Plugin {
   async afterAdd() {}
 
@@ -57,12 +83,21 @@ export class PluginOnlyofficeServer extends Plugin {
       name: 'onlyoffice',
       actions: {
         async getKey(ctx, next) {
-          const { fileUrl, collectionName, recordId, preScript, postScript } = ctx.action?.params?.values || {};
+          const {
+            fileUrl: rawFileUrl,
+            collectionName,
+            recordId,
+            preScript,
+            postScript,
+          } = ctx.action?.params?.values || {};
 
-          if (!fileUrl) {
+          if (!rawFileUrl) {
             ctx.throw(400, ctx.t('fileUrl is required for key generation'));
             return;
           }
+
+          // 将相对路径补全为带 origin 的完整 URL，确保 OnlyOffice 能下载文件
+          const fileUrl = resolveFullUrl(rawFileUrl, ctx);
 
           // Validate file table if collectionName is provided
           if (collectionName) {
@@ -95,7 +130,7 @@ export class PluginOnlyofficeServer extends Plugin {
             record = await repo.findOne({ filter: { fileUrl } });
           }
 
-          ctx.body = { key: record.docKey };
+          ctx.body = { key: record.docKey, fileUrl };
           await next();
         },
 

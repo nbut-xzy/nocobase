@@ -107,6 +107,7 @@ export const OnlyOffice: any = observer(
     const [resolvedCbUrl, setResolvedCbUrl] = useState('');
     const [resolving, setResolving] = useState(true);
     const [docKey, setDocKey] = useState('');
+    const [fullFileUrl, setFullFileUrl] = useState('');
 
     const record = ctx.record;
 
@@ -159,6 +160,7 @@ export const OnlyOffice: any = observer(
           });
           if (active && res?.data?.data?.key) {
             setDocKey(res.data.data.key);
+            setFullFileUrl(res.data.data.fileUrl || resolvedFileUrl);
           }
         } catch {
           if (active) setDocKey(encodeURIComponent(resolvedFileUrl));
@@ -233,7 +235,7 @@ export const OnlyOffice: any = observer(
         fileType: resolvedFileType,
         key,
         title: docTitle || record?.title || 'Document',
-        url: resolvedFileUrl,
+        url: fullFileUrl || resolvedFileUrl,
       },
       documentType: resolvedDocType,
       editorConfig: {

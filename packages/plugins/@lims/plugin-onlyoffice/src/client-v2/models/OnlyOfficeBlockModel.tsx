@@ -118,6 +118,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
   const [resolvedCbUrl, setResolvedCbUrl] = useState('');
   const [resolving, setResolving] = useState(true);
   const [docKey, setDocKey] = useState('');
+  const [fullFileUrl, setFullFileUrl] = useState('');
 
   // 获取全局配置
   useEffect(() => {
@@ -194,6 +195,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
         });
         if (active && res?.data?.data?.key) {
           setDocKey(res.data.data.key);
+          setFullFileUrl(res.data.data.fileUrl || resolvedFileUrl);
         }
       } catch {
         if (active) setDocKey(encodeURIComponent(resolvedFileUrl));
@@ -246,7 +248,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
       fileType: resolvedFileType as FileType,
       key,
       title: resolvedTitle,
-      url: resolvedFileUrl,
+      url: fullFileUrl || resolvedFileUrl,
     },
     documentType: resolvedDocType as Config['documentType'],
     editorConfig: {
