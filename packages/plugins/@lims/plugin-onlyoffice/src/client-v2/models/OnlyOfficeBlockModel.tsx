@@ -18,10 +18,11 @@ import {
   type PropertyMetaFactory,
 } from '@nocobase/flow-engine';
 import { css } from '@emotion/css';
-import { Card, Spin } from 'antd';
+import { Card, Spin, message } from 'antd';
 import React, { useEffect, useState } from 'react';
 import { CollectionBlockModel, BlockSceneEnum, TextAreaWithContextSelector } from '@nocobase/client-v2';
 import { tExpr, useT } from '../locale';
+import { ONLYOFFICE_CALLBACK_ACTION, resolveDocType } from '../../constants';
 
 const onlyofficeCardClass = css`
   & > .ant-card-body {
@@ -29,76 +30,9 @@ const onlyofficeCardClass = css`
   }
 `;
 
-const EXT_TO_DOC_TYPE: Record<string, { documentType: string; fileType: string }> = {
-  doc: { documentType: 'word', fileType: 'doc' },
-  docx: { documentType: 'word', fileType: 'docx' },
-  docm: { documentType: 'word', fileType: 'docm' },
-  dot: { documentType: 'word', fileType: 'dot' },
-  dotx: { documentType: 'word', fileType: 'dotx' },
-  dotm: { documentType: 'word', fileType: 'dotm' },
-  odt: { documentType: 'word', fileType: 'odt' },
-  ott: { documentType: 'word', fileType: 'ott' },
-  rtf: { documentType: 'word', fileType: 'rtf' },
-  txt: { documentType: 'word', fileType: 'txt' },
-  htm: { documentType: 'word', fileType: 'htm' },
-  html: { documentType: 'word', fileType: 'html' },
-  mht: { documentType: 'word', fileType: 'mht' },
-  mhtml: { documentType: 'word', fileType: 'mhtml' },
-  epub: { documentType: 'word', fileType: 'epub' },
-  fb2: { documentType: 'word', fileType: 'fb2' },
-  fodt: { documentType: 'word', fileType: 'fodt' },
-  stw: { documentType: 'word', fileType: 'stw' },
-  sxw: { documentType: 'word', fileType: 'sxw' },
-  wps: { documentType: 'word', fileType: 'wps' },
-  wpt: { documentType: 'word', fileType: 'wpt' },
-  pages: { documentType: 'word', fileType: 'pages' },
-  md: { documentType: 'word', fileType: 'md' },
-  xls: { documentType: 'cell', fileType: 'xls' },
-  xlsx: { documentType: 'cell', fileType: 'xlsx' },
-  xlsm: { documentType: 'cell', fileType: 'xlsm' },
-  xlt: { documentType: 'cell', fileType: 'xlt' },
-  xltx: { documentType: 'cell', fileType: 'xltx' },
-  xltm: { documentType: 'cell', fileType: 'xltm' },
-  csv: { documentType: 'cell', fileType: 'csv' },
-  ods: { documentType: 'cell', fileType: 'ods' },
-  ots: { documentType: 'cell', fileType: 'ots' },
-  fods: { documentType: 'cell', fileType: 'fods' },
-  sxc: { documentType: 'cell', fileType: 'sxc' },
-  et: { documentType: 'cell', fileType: 'et' },
-  ett: { documentType: 'cell', fileType: 'ett' },
-  ppt: { documentType: 'slide', fileType: 'ppt' },
-  pptx: { documentType: 'slide', fileType: 'pptx' },
-  pptm: { documentType: 'slide', fileType: 'pptm' },
-  pps: { documentType: 'slide', fileType: 'pps' },
-  ppsx: { documentType: 'slide', fileType: 'ppsx' },
-  ppsm: { documentType: 'slide', fileType: 'ppsm' },
-  pot: { documentType: 'slide', fileType: 'pot' },
-  potx: { documentType: 'slide', fileType: 'potx' },
-  potm: { documentType: 'slide', fileType: 'potm' },
-  odp: { documentType: 'slide', fileType: 'odp' },
-  otp: { documentType: 'slide', fileType: 'otp' },
-  fodp: { documentType: 'slide', fileType: 'fodp' },
-  sxi: { documentType: 'slide', fileType: 'sxi' },
-  dps: { documentType: 'slide', fileType: 'dps' },
-  dpt: { documentType: 'slide', fileType: 'dpt' },
-  pdf: { documentType: 'pdf', fileType: 'pdf' },
-  djvu: { documentType: 'pdf', fileType: 'djvu' },
-  xps: { documentType: 'pdf', fileType: 'xps' },
-  oxps: { documentType: 'pdf', fileType: 'oxps' },
-};
-
-function detectFromUrl(url: string): { documentType: string; fileType: string } | null {
-  if (!url) return null;
-  const cleaned = url.split('?')[0].split('#')[0];
-  const ext = cleaned.split('.').pop()?.toLowerCase();
-  return ext && EXT_TO_DOC_TYPE[ext] ? EXT_TO_DOC_TYPE[ext] : null;
-}
-
 interface OnlyOfficeEditorProps {
   uid: string;
   fileUrl?: string;
-  documentType?: string;
-  fileType?: string;
   mode?: string;
   title?: string;
   documentServerUrl?: string;
@@ -107,6 +41,7 @@ interface OnlyOfficeEditorProps {
   height?: string;
   preScript?: string;
   postScript?: string;
+  relationKeyField?: string;
 }
 
 const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
@@ -118,7 +53,6 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
   const [resolvedCbUrl, setResolvedCbUrl] = useState('');
   const [resolving, setResolving] = useState(true);
   const [docKey, setDocKey] = useState('');
-  const [fullFileUrl, setFullFileUrl] = useState('');
 
   // 获取全局配置
   useEffect(() => {
@@ -142,27 +76,37 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
   }, [ctx.api]);
 
   const serverUrl = props.documentServerUrl || globalSettings.documentServerUrl;
-  const rawCbUrl = props.callbackUrl || globalSettings.callbackUrl || '/api/onlyoffice:callback';
+  const rawCbUrl = props.callbackUrl || `${ctx.api.axios.defaults.baseURL}${ONLYOFFICE_CALLBACK_ACTION}`;
 
-  // 解析模板变量（fileUrl/callbackUrl 支持 {{ ctx.record.xxx }}）
+  // 解析模板变量（fileUrl/callbackUrl 支持 {{ ctx.record.xxx }}），并将相对路径补全为绝对路径
   useEffect(() => {
     let active = true;
     async function resolveTemplates() {
+      const apiOrigin = (() => {
+        try {
+          return new URL(ctx.api.axios.defaults.baseURL).origin;
+        } catch {
+          return '';
+        }
+      })();
+      const toAbsolute = (u: string) => {
+        if (!u || /^https?:\/\//i.test(u) || !apiOrigin) return u;
+        return u.startsWith('/') ? `${apiOrigin}${u}` : `${apiOrigin}/${u}`;
+      };
       try {
         const record = ctx.record;
-        // fileUrl: 显式配置 > ctx.record.url
         const rawUrl = props.fileUrl || record?.url || '';
         const urlResolved =
           typeof rawUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawUrl, ctx) : rawUrl || '';
         const cbResolved =
           typeof rawCbUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawCbUrl, ctx) : rawCbUrl || '';
         if (active) {
-          setResolvedFileUrl(urlResolved || '');
+          setResolvedFileUrl(toAbsolute(urlResolved || ''));
           setResolvedCbUrl(cbResolved || '');
         }
       } catch {
         if (active) {
-          setResolvedFileUrl(props.fileUrl || '');
+          setResolvedFileUrl(toAbsolute(props.fileUrl || ''));
           setResolvedCbUrl(rawCbUrl || '');
         }
       } finally {
@@ -173,39 +117,64 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.fileUrl, rawCbUrl, ctx]);
 
-  // 获取文档 key（同一 fileUrl 返回相同 key）
+  // 打开文档：getKey → 冲突检测 → bind（如需要）
   useEffect(() => {
     if (!resolvedFileUrl) return;
     let active = true;
-    async function fetchKey() {
+
+    async function openDocument() {
       try {
-        const record = ctx.record;
-        const res = await ctx.api.request({
+        const collectionName = (ctx as any).collectionName || (ctx as any).collection?.name || null;
+
+        // Step 1: 查询是否已有 key
+        const getKeyRes = await ctx.api.request({
           url: 'onlyoffice:getKey',
           method: 'post',
-          data: {
-            fileUrl: resolvedFileUrl,
-            collectionName: (ctx as any).collectionName || (ctx as any).collection?.name || null,
-            recordId: record?.id || null,
-            preScript: props.preScript || null,
-            postScript: props.postScript || null,
-          },
+          data: { fileUrl: resolvedFileUrl },
         });
-        if (active && res?.data?.data?.key) {
-          setDocKey(res.data.data.key);
-          setFullFileUrl(res.data.data.fileUrl || resolvedFileUrl);
+        const data = getKeyRes?.data?.data;
+
+        if (data && data.key) {
+          // 已存在 — 检查是否属于当前区块
+          if (data.uiSchemaBlockUid && data.uiSchemaBlockUid !== props.uid) {
+            message.error(t('File is being edited in another block'));
+            return;
+          }
+          // 同一区块，直接使用已有 key
+          if (active) {
+            setDocKey(data.key);
+          }
+        } else {
+          // 不存在 — 创建绑定
+          const bindRes = await ctx.api.request({
+            url: 'onlyoffice:bind',
+            method: 'post',
+            data: {
+              fileUrl: resolvedFileUrl,
+              uiSchemaBlockUid: props.uid,
+              recordId: ctx.record?.id || null,
+              collectionName,
+            },
+          });
+          if (active && bindRes?.data?.data?.key) {
+            setDocKey(bindRes.data.data.key);
+          }
         }
-      } catch {
+      } catch (err: any) {
+        if (err?.response?.status === 401 || err?.response?.status === 403) throw err;
         if (active) setDocKey(encodeURIComponent(resolvedFileUrl));
       }
     }
-    fetchKey();
+
+    openDocument();
     return () => {
       active = false;
     };
-  }, [resolvedFileUrl, ctx.api, props.preScript, props.postScript]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedFileUrl, ctx.api]);
 
   if (loading || resolving) {
     return (
@@ -225,30 +194,17 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     return <Card>{t('Please provide a file URL.')}</Card>;
   }
 
-  const detected = detectFromUrl(resolvedFileUrl);
-  const resolvedDocType = props.documentType || detected?.documentType || 'word';
-  const resolvedFileType =
-    props.fileType ||
-    detected?.fileType ||
-    (resolvedDocType === 'word'
-      ? 'docx'
-      : resolvedDocType === 'cell'
-        ? 'xlsx'
-        : resolvedDocType === 'slide'
-          ? 'pptx'
-          : 'pdf');
+  const { documentType: resolvedDocType, fileType: resolvedFileType } = resolveDocType(resolvedFileUrl);
 
   const record = ctx.record;
   const resolvedTitle = props.title || record?.title || 'Document';
 
-  const key = docKey;
-
   const config: Config = {
     document: {
       fileType: resolvedFileType as FileType,
-      key,
+      key: docKey,
       title: resolvedTitle,
-      url: fullFileUrl || resolvedFileUrl,
+      url: resolvedFileUrl,
     },
     documentType: resolvedDocType as Config['documentType'],
     editorConfig: {
@@ -275,9 +231,30 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
 
 OnlyOfficeEditor.displayName = 'OnlyOfficeEditor';
 
+/**
+ * 计算"文件引用字段"的可选项：
+ * 过滤当前 collection 中 interface === 'obo'（belongsTo）且目标表 template === 'file' 的字段
+ */
+function computeRelationKeyFieldOptions(ctx: any): { label: string; value: string }[] {
+  const collection = ctx.model?.context?.collection;
+  if (!collection) return [];
+  const fields = collection.fields || [];
+  return fields
+    .filter((f: any) => {
+      const iface = f.interface || f.options?.interface;
+      if (iface !== 'obo') return false;
+      const targetCol = f.targetCollection;
+      return targetCol?.template === 'file' || targetCol?.options?.template === 'file';
+    })
+    .map((f: any) => ({
+      label: f.uiSchema?.title || f.name,
+      value: f.name,
+    }));
+}
+
 export class OnlyOfficeBlockModel extends CollectionBlockModel {
   static scene = BlockSceneEnum.one;
-  collectionRequired = false; // 支持无集合绑定的独立使用
+  collectionRequired = false;
 
   createResource(ctx, params) {
     return ctx.createResource(SingleRecordResource);
@@ -305,7 +282,7 @@ export class OnlyOfficeBlockModel extends CollectionBlockModel {
     const model = this;
     const t = (key: string) => model.context.t?.(key) || key;
 
-    // ctx.record meta: same pattern as createPopupMeta — async factory calls buildRecordMeta
+    // ctx.record meta
     const recordMeta: PropertyMetaFactory = async () => {
       const ctxCollection = model.context.collection || (model.context as any).collection;
       if (ctxCollection?.name) {
@@ -359,6 +336,7 @@ OnlyOfficeBlockModel.registerFlow({
       title: tExpr('Edit OnlyOffice'),
       uiSchema(ctx) {
         const t = ctx.t;
+        // const relationKeyFieldOptions = computeRelationKeyFieldOptions(ctx);
         return {
           fileUrl: {
             title: t('File URL'),
@@ -400,9 +378,21 @@ OnlyOfficeBlockModel.registerFlow({
             'x-decorator': 'FormItem',
             'x-component': TextAreaWithContextSelector,
             'x-component-props': {
-              placeholder: '/api/onlyoffice:callback',
+              placeholder: ONLYOFFICE_CALLBACK_ACTION,
             },
             description: t('If empty, the auto-generated callback URL will be used'),
+          },
+          relationKeyField: {
+            title: t('File Reference Field'),
+            type: 'string',
+            'x-component': 'Select',
+            'x-decorator': 'FormItem',
+            required: true,
+            'x-component-props': {
+              placeholder: t('Select a belongsTo field targeting a file table'),
+              // options: relationKeyFieldOptions,
+            },
+            description: t('Updated with the edited file after OnlyOffice saves'),
           },
           preScript: {
             title: t('Pre-callback Script'),
@@ -411,7 +401,8 @@ OnlyOfficeBlockModel.registerFlow({
             'x-component': 'Input.TextArea',
             'x-component-props': {
               rows: 4,
-              placeholder: '// Runs before file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+              placeholder:
+                '// Runs before file save\n// Access: callbackBody, originalRecord, collectionName, recordId, relationKeyField',
             },
             description: t('Simple JavaScript code executed before the callback is processed'),
           },
@@ -422,14 +413,18 @@ OnlyOfficeBlockModel.registerFlow({
             'x-component': 'Input.TextArea',
             'x-component-props': {
               rows: 4,
-              placeholder: '// Runs after file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+              placeholder:
+                '// Runs after file save\n// Access: callbackBody, originalRecord, collectionName, recordId, relationKeyField',
             },
             description: t('Simple JavaScript code executed after the callback is processed'),
           },
         };
       },
       async handler(ctx, params) {
-        const { fileUrl, mode, title, documentServerUrl, callbackUrl, preScript, postScript } = params;
+        const { fileUrl, mode, title, documentServerUrl, callbackUrl, preScript, postScript, relationKeyField } =
+          params;
+
+        // 1. 更新 flow engine 内部状态（组件渲染用）
         ctx.model.setProps({
           fileUrl,
           mode,
@@ -438,6 +433,7 @@ OnlyOfficeBlockModel.registerFlow({
           callbackUrl,
           preScript,
           postScript,
+          relationKeyField,
         });
       },
     },

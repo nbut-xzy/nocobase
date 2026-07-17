@@ -40,9 +40,11 @@
   "Simple JavaScript code executed before the callback is processed": "Simple JavaScript code executed before the callback is processed",
   "Simple JavaScript code executed after the callback is processed": "Simple JavaScript code executed after the callback is processed",
   "Callback script execution failed": "Callback script execution failed",
-  "File collection not found": "File collection not found",
-  "Collection must be a file table (template: file)": "Collection must be a file table (template: file)",
-  "File record not found": "File record not found",
   "Document key not found": "Document key not found",
-  "JWT validation failed": "JWT validation failed"
+  "JWT validation failed": "JWT validation failed",
+  "File Reference Field": "File Reference Field",
+  "Select a belongsTo field targeting a file table": "Select a belongsTo field targeting a file table",
+  "Updated with the edited file after OnlyOffice saves": "Updated with the edited file after OnlyOffice saves",
+  "File is being edited in another block": "File is being edited in another block",
+  "fileUrl and uiSchemaBlockUid are required": "fileUrl and uiSchemaBlockUid are required"
 }

@@ -18,12 +18,14 @@ declare let Compartment: new (endowments?: Record<string, any>) => {
 export interface CallbackScriptContext {
   /** OnlyOffice 回调请求体 */
   callbackBody: Record<string, any>;
-  /** 当前文件记录（可能为 null，如果未绑定文件表） */
-  fileRecord: Record<string, any> | null;
-  /** 文件表名 */
+  /** 原始数据行记录（区块所在的记录，可能为 null） */
+  originalRecord: Record<string, any> | null;
+  /** 原始数据行所在表名 */
   collectionName: string;
-  /** 文件记录 ID */
+  /** 原始数据行 ID */
   recordId: number | null;
+  /** 文件引用字段名（belongsTo 类型，指向文件表） */
+  relationKeyField: string | null;
 }
 
 /**

@@ -40,9 +40,11 @@
   "Simple JavaScript code executed before the callback is processed": "在回调处理前执行的简单JavaScript代码",
   "Simple JavaScript code executed after the callback is processed": "在回调处理后执行的简单JavaScript代码",
   "Callback script execution failed": "回调脚本执行失败",
-  "File collection not found": "文件表不存在",
-  "Collection must be a file table (template: file)": "必须绑定文件数据表（template: file）",
-  "File record not found": "文件记录不存在",
   "Document key not found": "文档 key 未找到",
-  "JWT validation failed": "JWT 验证失败"
+  "JWT validation failed": "JWT 验证失败",
+  "File Reference Field": "文件引用字段",
+  "Select a belongsTo field targeting a file table": "选择指向文件表的所属关系字段",
+  "Updated with the edited file after OnlyOffice saves": "OnlyOffice 保存后使用编辑后的文件更新此字段",
+  "File is being edited in another block": "文件正在另一个区块中编辑",
+  "fileUrl and uiSchemaBlockUid are required": "fileUrl 和 uiSchemaBlockUid 为必填项"
 }

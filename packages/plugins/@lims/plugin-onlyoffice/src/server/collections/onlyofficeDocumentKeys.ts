@@ -17,13 +17,16 @@ export default defineCollection({
   shared: true,
   createdBy: true,
   updatedBy: true,
+  indexes: [
+    { type: 'UNIQUE', fields: ['fileUrl'] },
+    { type: 'UNIQUE', fields: ['docKey'] },
+  ],
   fields: [
     { type: 'uid', name: 'id', primaryKey: true },
     { type: 'string', name: 'fileUrl', unique: true, title: 'File URL' },
     { type: 'string', name: 'docKey', unique: true, title: 'Document Key' },
-    { type: 'string', name: 'collectionName', title: 'Collection Name' },
+    { type: 'string', name: 'uiSchemaBlockUid', title: 'UI Schema Block UID' },
+    { type: 'string', name: 'collectionName', title: 'Record Collection Name' },
     { type: 'bigInt', name: 'recordId', title: 'Record ID' },
-    { type: 'text', name: 'preScript', title: 'Pre-callback Script' },
-    { type: 'text', name: 'postScript', title: 'Post-callback Script' },
   ],
 });

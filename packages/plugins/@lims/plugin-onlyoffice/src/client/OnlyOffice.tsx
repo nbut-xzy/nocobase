@@ -8,81 +8,18 @@
  */
 
 import { DocumentEditor } from '@onlyoffice/document-editor-react';
-import { observer, useField } from '@formily/react';
+import { observer, useField, useFieldSchema } from '@formily/react';
 import { useAPIClient, useBlockHeight } from '@nocobase/client';
 import { useFlowContext } from '@nocobase/flow-engine';
-import { Card, Spin } from 'antd';
+import { Card, Spin, message } from 'antd';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-const EXT_TO_DOC_TYPE: Record<string, { documentType: string; fileType: string }> = {
-  doc: { documentType: 'word', fileType: 'doc' },
-  docx: { documentType: 'word', fileType: 'docx' },
-  docm: { documentType: 'word', fileType: 'docm' },
-  dot: { documentType: 'word', fileType: 'dot' },
-  dotx: { documentType: 'word', fileType: 'dotx' },
-  dotm: { documentType: 'word', fileType: 'dotm' },
-  odt: { documentType: 'word', fileType: 'odt' },
-  ott: { documentType: 'word', fileType: 'ott' },
-  rtf: { documentType: 'word', fileType: 'rtf' },
-  txt: { documentType: 'word', fileType: 'txt' },
-  htm: { documentType: 'word', fileType: 'htm' },
-  html: { documentType: 'word', fileType: 'html' },
-  mht: { documentType: 'word', fileType: 'mht' },
-  mhtml: { documentType: 'word', fileType: 'mhtml' },
-  epub: { documentType: 'word', fileType: 'epub' },
-  fb2: { documentType: 'word', fileType: 'fb2' },
-  fodt: { documentType: 'word', fileType: 'fodt' },
-  stw: { documentType: 'word', fileType: 'stw' },
-  sxw: { documentType: 'word', fileType: 'sxw' },
-  wps: { documentType: 'word', fileType: 'wps' },
-  wpt: { documentType: 'word', fileType: 'wpt' },
-  pages: { documentType: 'word', fileType: 'pages' },
-  md: { documentType: 'word', fileType: 'md' },
-  xls: { documentType: 'cell', fileType: 'xls' },
-  xlsx: { documentType: 'cell', fileType: 'xlsx' },
-  xlsm: { documentType: 'cell', fileType: 'xlsm' },
-  xlt: { documentType: 'cell', fileType: 'xlt' },
-  xltx: { documentType: 'cell', fileType: 'xltx' },
-  xltm: { documentType: 'cell', fileType: 'xltm' },
-  csv: { documentType: 'cell', fileType: 'csv' },
-  ods: { documentType: 'cell', fileType: 'ods' },
-  ots: { documentType: 'cell', fileType: 'ots' },
-  fods: { documentType: 'cell', fileType: 'fods' },
-  sxc: { documentType: 'cell', fileType: 'sxc' },
-  et: { documentType: 'cell', fileType: 'et' },
-  ett: { documentType: 'cell', fileType: 'ett' },
-  ppt: { documentType: 'slide', fileType: 'ppt' },
-  pptx: { documentType: 'slide', fileType: 'pptx' },
-  pptm: { documentType: 'slide', fileType: 'pptm' },
-  pps: { documentType: 'slide', fileType: 'pps' },
-  ppsx: { documentType: 'slide', fileType: 'ppsx' },
-  ppsm: { documentType: 'slide', fileType: 'ppsm' },
-  pot: { documentType: 'slide', fileType: 'pot' },
-  potx: { documentType: 'slide', fileType: 'potx' },
-  potm: { documentType: 'slide', fileType: 'potm' },
-  odp: { documentType: 'slide', fileType: 'odp' },
-  otp: { documentType: 'slide', fileType: 'otp' },
-  fodp: { documentType: 'slide', fileType: 'fodp' },
-  sxi: { documentType: 'slide', fileType: 'sxi' },
-  dps: { documentType: 'slide', fileType: 'dps' },
-  dpt: { documentType: 'slide', fileType: 'dpt' },
-  pdf: { documentType: 'pdf', fileType: 'pdf' },
-  djvu: { documentType: 'pdf', fileType: 'djvu' },
-  xps: { documentType: 'pdf', fileType: 'xps' },
-  oxps: { documentType: 'pdf', fileType: 'oxps' },
-};
-
-function detectFromUrl(url: string): { documentType: string; fileType: string } | null {
-  if (!url) return null;
-  const cleaned = url.split('?')[0].split('#')[0];
-  const ext = cleaned.split('.').pop()?.toLowerCase();
-  return ext && EXT_TO_DOC_TYPE[ext] ? EXT_TO_DOC_TYPE[ext] : null;
-}
+import { ONLYOFFICE_CALLBACK_ACTION, resolveDocType } from '../constants';
 
 export const OnlyOffice: any = observer(
   (props: any) => {
     const field = useField();
+    const fieldSchema = useFieldSchema();
     const { t } = useTranslation();
     const api = useAPIClient();
     const height = useBlockHeight();
@@ -90,8 +27,6 @@ export const OnlyOffice: any = observer(
     const componentProps = { ...props, ...(field.componentProps || {}) };
     const {
       fileUrl,
-      documentType,
-      fileType,
       mode = 'edit',
       title: docTitle,
       documentServerUrl,
@@ -99,6 +34,7 @@ export const OnlyOffice: any = observer(
       lang,
       preScript,
       postScript,
+      relationKeyField,
     } = componentProps;
 
     const [globalSettings, setGlobalSettings] = useState<Record<string, string>>({});
@@ -107,29 +43,38 @@ export const OnlyOffice: any = observer(
     const [resolvedCbUrl, setResolvedCbUrl] = useState('');
     const [resolving, setResolving] = useState(true);
     const [docKey, setDocKey] = useState('');
-    const [fullFileUrl, setFullFileUrl] = useState('');
 
     const record = ctx.record;
 
     useEffect(() => {
       let active = true;
       async function resolveTemplates() {
+        const apiOrigin = (() => {
+          try {
+            return new URL(api.axios.defaults.baseURL).origin;
+          } catch {
+            return '';
+          }
+        })();
+        const toAbsolute = (u: string) => {
+          if (!u || /^https?:\/\//i.test(u) || !apiOrigin) return u;
+          return u.startsWith('/') ? `${apiOrigin}${u}` : `${apiOrigin}/${u}`;
+        };
         try {
-          // fileUrl: 显式配置 > ctx.record.url
           const rawUrl = fileUrl || record?.url || '';
           const urlResolved =
             typeof rawUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawUrl, ctx) : rawUrl || '';
-          const cbRaw = callbackUrl || globalSettings.callbackUrl || '/api/onlyoffice:callback';
+          const cbRaw = callbackUrl || `${api.axios.defaults.baseURL}${ONLYOFFICE_CALLBACK_ACTION}`;
           const cbResolved =
             typeof cbRaw === 'string' ? await ctx.liquid.renderWithFullContext(cbRaw, ctx) : cbRaw || '';
           if (active) {
-            setResolvedFileUrl(urlResolved || '');
+            setResolvedFileUrl(toAbsolute(urlResolved || ''));
             setResolvedCbUrl(cbResolved || '');
           }
         } catch {
           if (active) {
-            setResolvedFileUrl(fileUrl || '');
-            setResolvedCbUrl(callbackUrl || globalSettings.callbackUrl || '/api/onlyoffice:callback');
+            setResolvedFileUrl(toAbsolute(fileUrl || ''));
+            setResolvedCbUrl(callbackUrl || `${api.axios.defaults.baseURL}${ONLYOFFICE_CALLBACK_ACTION}`);
           }
         } finally {
           if (active) setResolving(false);
@@ -140,37 +85,64 @@ export const OnlyOffice: any = observer(
         active = false;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fileUrl, callbackUrl, globalSettings.callbackUrl, ctx]);
+    }, [fileUrl, callbackUrl, ctx]);
 
+    // 打开文档：getKey → 冲突检测 → bind（如需要）
     useEffect(() => {
       if (!resolvedFileUrl) return;
       let active = true;
-      async function fetchKey() {
+
+      async function openDocument() {
         try {
-          const res: any = await api.request({
+          const collectionName = (ctx as any).collectionName || (ctx as any).collection?.name || null;
+          const blockUid = fieldSchema['x-uid'];
+
+          // Step 1: 查询是否已有 key
+          const getKeyRes: any = await api.request({
             url: 'onlyoffice:getKey',
             method: 'post',
-            data: {
-              fileUrl: resolvedFileUrl,
-              collectionName: (ctx as any).collectionName || (ctx as any).collection?.name || null,
-              recordId: record?.id || null,
-              preScript: preScript || null,
-              postScript: postScript || null,
-            },
+            data: { fileUrl: resolvedFileUrl },
           });
-          if (active && res?.data?.data?.key) {
-            setDocKey(res.data.data.key);
-            setFullFileUrl(res.data.data.fileUrl || resolvedFileUrl);
+          const data = getKeyRes?.data?.data;
+
+          if (data && data.key) {
+            // 已存在 — 检查是否属于当前区块
+            if (data.uiSchemaBlockUid && data.uiSchemaBlockUid !== blockUid) {
+              message.error(t('File is being edited in another block'));
+              return;
+            }
+            // 同一区块，直接使用已有 key
+            if (active) {
+              setDocKey(data.key);
+            }
+          } else {
+            // 不存在 — 创建绑定
+            const bindRes: any = await api.request({
+              url: 'onlyoffice:bind',
+              method: 'post',
+              data: {
+                fileUrl: resolvedFileUrl,
+                uiSchemaBlockUid: blockUid,
+                recordId: record?.id || null,
+                collectionName,
+              },
+            });
+            if (active && bindRes?.data?.data?.key) {
+              setDocKey(bindRes.data.data.key);
+            }
           }
-        } catch {
+        } catch (err: any) {
+          if (err?.response?.status === 401 || err?.response?.status === 403) throw err;
           if (active) setDocKey(encodeURIComponent(resolvedFileUrl));
         }
       }
-      fetchKey();
+
+      openDocument();
       return () => {
         active = false;
       };
-    }, [resolvedFileUrl, api, preScript, postScript]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resolvedFileUrl, api]);
 
     useEffect(() => {
       let active = true;
@@ -193,7 +165,6 @@ export const OnlyOffice: any = observer(
     }, [api]);
 
     const serverUrl = documentServerUrl || globalSettings.documentServerUrl;
-    const cbUrl = callbackUrl || globalSettings.callbackUrl;
 
     if (loading || resolving) {
       return (
@@ -215,18 +186,7 @@ export const OnlyOffice: any = observer(
       return <Card style={{ marginBottom: 24 }}>{t('Please provide a file URL.')}</Card>;
     }
 
-    const detected = detectFromUrl(resolvedFileUrl);
-    const resolvedDocType = documentType || detected?.documentType || 'word';
-    const resolvedFileType =
-      fileType ||
-      detected?.fileType ||
-      (resolvedDocType === 'word'
-        ? 'docx'
-        : resolvedDocType === 'cell'
-          ? 'xlsx'
-          : resolvedDocType === 'slide'
-            ? 'pptx'
-            : 'pdf');
+    const { documentType: resolvedDocType, fileType: resolvedFileType } = resolveDocType(resolvedFileUrl);
 
     const key = docKey;
 
@@ -235,7 +195,7 @@ export const OnlyOffice: any = observer(
         fileType: resolvedFileType,
         key,
         title: docTitle || record?.title || 'Document',
-        url: fullFileUrl || resolvedFileUrl,
+        url: resolvedFileUrl,
       },
       documentType: resolvedDocType,
       editorConfig: {

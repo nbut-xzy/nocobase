@@ -17,9 +17,11 @@ import {
   useVariableOptions,
   Variable,
   FlagProvider,
+  useCollection_deprecated,
 } from '@nocobase/client';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ONLYOFFICE_CALLBACK_ACTION } from '../constants';
 
 const OnlyOfficeProvider = (props) => {
   return <FlagProvider collectionField={true}>{props.children}</FlagProvider>;
@@ -49,7 +51,25 @@ const commonOptions: any = {
         const fieldSchema = useFieldSchema();
         const { t } = useTranslation();
         const { dn } = useDesignable();
+        const collection = useCollection_deprecated();
         const componentProps = fieldSchema['x-component-props'] || {};
+
+        // 计算"文件引用字段"的可选项：interface === 'obo' 且目标表 template === 'file'
+        const relationKeyFieldOptions = useMemo(() => {
+          if (!collection) return [];
+          const fields = (collection as any).fields || [];
+          return fields
+            .filter((f: any) => {
+              const iface = f.interface || f.options?.interface;
+              if (iface !== 'obo') return false;
+              const targetCol = f.targetCollection;
+              return targetCol?.template === 'file' || targetCol?.options?.template === 'file';
+            })
+            .map((f: any) => ({
+              label: f.uiSchema?.title || f.name,
+              value: f.name,
+            }));
+        }, [collection]);
 
         const submitHandler = async (values: any) => {
           const props = fieldSchema['x-component-props'] || {};
@@ -60,6 +80,7 @@ const commonOptions: any = {
           props.callbackUrl = values.callbackUrl || undefined;
           props.preScript = values.preScript || undefined;
           props.postScript = values.postScript || undefined;
+          props.relationKeyField = values.relationKeyField || undefined;
           fieldSchema['x-component-props'] = props;
           field.componentProps = { ...props };
           dn.emit('patch', {
@@ -81,6 +102,7 @@ const commonOptions: any = {
               callbackUrl: componentProps.callbackUrl || '',
               preScript: componentProps.preScript || '',
               postScript: componentProps.postScript || '',
+              relationKeyField: componentProps.relationKeyField || '',
             };
           },
           schema: {
@@ -131,9 +153,21 @@ const commonOptions: any = {
                     'x-decorator': 'FormItem',
                     'x-component': getVariableComponentWithScope(Variable.TextArea),
                     'x-component-props': {
-                      placeholder: '/api/onlyoffice:callback',
+                      placeholder: ONLYOFFICE_CALLBACK_ACTION,
                     },
                     description: t('If empty, the auto-generated callback URL will be used'),
+                  },
+                  relationKeyField: {
+                    title: t('File Reference Field'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'Select',
+                    required: true,
+                    'x-component-props': {
+                      placeholder: t('Select a belongsTo field targeting a file table'),
+                      options: relationKeyFieldOptions,
+                    },
+                    description: t('Updated with the edited file after OnlyOffice saves'),
                   },
                   preScript: {
                     title: t('Pre-callback Script'),
@@ -143,7 +177,7 @@ const commonOptions: any = {
                     'x-component-props': {
                       rows: 4,
                       placeholder:
-                        '// Runs before file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+                        '// Runs before file save\n// Access: callbackBody, originalRecord, collectionName, recordId, relationKeyField',
                     },
                   },
                   postScript: {
@@ -154,7 +188,7 @@ const commonOptions: any = {
                     'x-component-props': {
                       rows: 4,
                       placeholder:
-                        '// Runs after file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+                        '// Runs after file save\n// Access: callbackBody, originalRecord, collectionName, recordId, relationKeyField',
                     },
                   },
                 },
