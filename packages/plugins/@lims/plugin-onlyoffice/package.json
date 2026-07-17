@@ -1,13 +1,15 @@
 {
   "name": "@lims/plugin-onlyoffice",
-  "version": "2.1.25",
+  "version": "2.1.25.1",
   "main": "dist/server/index.js",
   "displayName": "Block: OnlyOffice",
   "displayName.zh-CN": "区块：OnlyOffice",
   "description": "Embed OnlyOffice editors (Word, Excel, PPT, PDF) with configurable Document Server URL.",
   "description.zh-CN": "通过 OnlyOffice 嵌入 Word、Excel、PPT、PDF 编辑器，支持配置文档服务器地址。",
   "dependencies": {
-    "@onlyoffice/document-editor-react": "^2.2.0"
+    "@onlyoffice/document-editor-react": "^2.2.0",
+    "axios": "^1.7.0",
+    "jsonwebtoken": "^9.0.0"
   },
   "devDependencies": {
     "@onlyoffice/doceditor-types": "^9.4.0"

@@ -20,6 +20,6 @@ export default defineCollection({
   fields: [
     { type: 'uid', name: 'id', primaryKey: true },
     { type: 'string', name: 'documentServerUrl', title: 'Document Server URL' },
-    { type: 'string', name: 'callbackUrl', title: 'Callback URL' },
+    { type: 'string', name: 'jwtSecret', title: 'JWT Secret' },
   ],
 });

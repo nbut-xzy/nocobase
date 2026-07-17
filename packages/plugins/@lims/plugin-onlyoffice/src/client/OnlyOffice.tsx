@@ -97,6 +97,8 @@ export const OnlyOffice: any = observer(
       documentServerUrl,
       callbackUrl,
       lang,
+      preScript,
+      postScript,
     } = componentProps;
 
     const [globalSettings, setGlobalSettings] = useState<Record<string, string>>({});
@@ -116,7 +118,7 @@ export const OnlyOffice: any = observer(
           const rawUrl = fileUrl || record?.url || '';
           const urlResolved =
             typeof rawUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawUrl, ctx) : rawUrl || '';
-          const cbRaw = callbackUrl || globalSettings.callbackUrl;
+          const cbRaw = callbackUrl || globalSettings.callbackUrl || '/api/onlyoffice:callback';
           const cbResolved =
             typeof cbRaw === 'string' ? await ctx.liquid.renderWithFullContext(cbRaw, ctx) : cbRaw || '';
           if (active) {
@@ -126,7 +128,7 @@ export const OnlyOffice: any = observer(
         } catch {
           if (active) {
             setResolvedFileUrl(fileUrl || '');
-            setResolvedCbUrl(callbackUrl || globalSettings.callbackUrl || '');
+            setResolvedCbUrl(callbackUrl || globalSettings.callbackUrl || '/api/onlyoffice:callback');
           }
         } finally {
           if (active) setResolving(false);
@@ -147,7 +149,13 @@ export const OnlyOffice: any = observer(
           const res: any = await api.request({
             url: 'onlyoffice:getKey',
             method: 'post',
-            data: { fileUrl: resolvedFileUrl },
+            data: {
+              fileUrl: resolvedFileUrl,
+              collectionName: (ctx as any).collectionName || (ctx as any).collection?.name || null,
+              recordId: record?.id || null,
+              preScript: preScript || null,
+              postScript: postScript || null,
+            },
           });
           if (active && res?.data?.data?.key) {
             setDocKey(res.data.data.key);
@@ -160,7 +168,7 @@ export const OnlyOffice: any = observer(
       return () => {
         active = false;
       };
-    }, [resolvedFileUrl, api]);
+    }, [resolvedFileUrl, api, preScript, postScript]);
 
     useEffect(() => {
       let active = true;

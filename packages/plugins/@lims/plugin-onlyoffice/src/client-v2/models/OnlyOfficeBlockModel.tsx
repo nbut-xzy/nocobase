@@ -9,7 +9,14 @@
 
 import { DocumentEditor } from '@onlyoffice/document-editor-react';
 import type { Config, FileType, Lang } from '@onlyoffice/doceditor-types';
-import { SingleRecordResource, observer, useFlowContext } from '@nocobase/flow-engine';
+import {
+  buildRecordMeta,
+  inferRecordRef,
+  SingleRecordResource,
+  observer,
+  useFlowContext,
+  type PropertyMetaFactory,
+} from '@nocobase/flow-engine';
 import { css } from '@emotion/css';
 import { Card, Spin } from 'antd';
 import React, { useEffect, useState } from 'react';
@@ -98,6 +105,8 @@ interface OnlyOfficeEditorProps {
   callbackUrl?: string;
   lang?: string;
   height?: string;
+  preScript?: string;
+  postScript?: string;
 }
 
 const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
@@ -132,7 +141,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
   }, [ctx.api]);
 
   const serverUrl = props.documentServerUrl || globalSettings.documentServerUrl;
-  const rawCbUrl = props.callbackUrl || globalSettings.callbackUrl;
+  const rawCbUrl = props.callbackUrl || globalSettings.callbackUrl || '/api/onlyoffice:callback';
 
   // 解析模板变量（fileUrl/callbackUrl 支持 {{ ctx.record.xxx }}）
   useEffect(() => {
@@ -171,10 +180,17 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     let active = true;
     async function fetchKey() {
       try {
+        const record = ctx.record;
         const res = await ctx.api.request({
           url: 'onlyoffice:getKey',
           method: 'post',
-          data: { fileUrl: resolvedFileUrl },
+          data: {
+            fileUrl: resolvedFileUrl,
+            collectionName: (ctx as any).collectionName || (ctx as any).collection?.name || null,
+            recordId: record?.id || null,
+            preScript: props.preScript || null,
+            postScript: props.postScript || null,
+          },
         });
         if (active && res?.data?.data?.key) {
           setDocKey(res.data.data.key);
@@ -187,7 +203,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     return () => {
       active = false;
     };
-  }, [resolvedFileUrl, ctx.api]);
+  }, [resolvedFileUrl, ctx.api, props.preScript, props.postScript]);
 
   if (loading || resolving) {
     return (
@@ -284,9 +300,28 @@ export class OnlyOfficeBlockModel extends CollectionBlockModel {
       className: [this.decoratorProps.className, onlyofficeCardClass].filter(Boolean).join(' '),
     });
 
+    const model = this;
+    const t = (key: string) => model.context.t?.(key) || key;
+
+    // ctx.record meta: same pattern as createPopupMeta — async factory calls buildRecordMeta
+    const recordMeta: PropertyMetaFactory = async () => {
+      const ctxCollection = model.context.collection || (model.context as any).collection;
+      if (ctxCollection?.name) {
+        return buildRecordMeta(
+          () => ctxCollection,
+          t('Current record'),
+          (c) => inferRecordRef(c),
+        );
+      }
+      return null;
+    };
+    recordMeta.title = t('Current record');
+    recordMeta.hasChildren = true;
+
     this.context.defineProperty('record', {
       get: () => this.getCurrentRecord(),
       cache: false,
+      meta: recordMeta,
     });
 
     this.context.defineProperty('onlyoffice', {
@@ -363,20 +398,44 @@ OnlyOfficeBlockModel.registerFlow({
             'x-decorator': 'FormItem',
             'x-component': TextAreaWithContextSelector,
             'x-component-props': {
-              placeholder: '/api/collection:update/{{ ctx.record.id }}',
+              placeholder: '/api/onlyoffice:callback',
             },
-            description: t('If empty, the global default will be used'),
+            description: t('If empty, the auto-generated callback URL will be used'),
+          },
+          preScript: {
+            title: t('Pre-callback Script'),
+            type: 'string',
+            'x-decorator': 'FormItem',
+            'x-component': 'Input.TextArea',
+            'x-component-props': {
+              rows: 4,
+              placeholder: '// Runs before file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+            },
+            description: t('Simple JavaScript code executed before the callback is processed'),
+          },
+          postScript: {
+            title: t('Post-callback Script'),
+            type: 'string',
+            'x-decorator': 'FormItem',
+            'x-component': 'Input.TextArea',
+            'x-component-props': {
+              rows: 4,
+              placeholder: '// Runs after file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+            },
+            description: t('Simple JavaScript code executed after the callback is processed'),
           },
         };
       },
       async handler(ctx, params) {
-        const { fileUrl, mode, title, documentServerUrl, callbackUrl } = params;
+        const { fileUrl, mode, title, documentServerUrl, callbackUrl, preScript, postScript } = params;
         ctx.model.setProps({
           fileUrl,
           mode,
           title,
           documentServerUrl,
           callbackUrl,
+          preScript,
+          postScript,
         });
       },
     },

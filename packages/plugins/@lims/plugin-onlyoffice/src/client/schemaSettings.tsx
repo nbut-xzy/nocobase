@@ -58,6 +58,8 @@ const commonOptions: any = {
           props.title = values.title || undefined;
           props.documentServerUrl = values.documentServerUrl || undefined;
           props.callbackUrl = values.callbackUrl || undefined;
+          props.preScript = values.preScript || undefined;
+          props.postScript = values.postScript || undefined;
           fieldSchema['x-component-props'] = props;
           field.componentProps = { ...props };
           dn.emit('patch', {
@@ -77,6 +79,8 @@ const commonOptions: any = {
               title: componentProps.title || '',
               documentServerUrl: componentProps.documentServerUrl || '',
               callbackUrl: componentProps.callbackUrl || '',
+              preScript: componentProps.preScript || '',
+              postScript: componentProps.postScript || '',
             };
           },
           schema: {
@@ -127,9 +131,31 @@ const commonOptions: any = {
                     'x-decorator': 'FormItem',
                     'x-component': getVariableComponentWithScope(Variable.TextArea),
                     'x-component-props': {
-                      placeholder: '/api/collection:update/{{ ctx.record.id }}',
+                      placeholder: '/api/onlyoffice:callback',
                     },
-                    description: t('If empty, the global default will be used'),
+                    description: t('If empty, the auto-generated callback URL will be used'),
+                  },
+                  preScript: {
+                    title: t('Pre-callback Script'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'Input.TextArea',
+                    'x-component-props': {
+                      rows: 4,
+                      placeholder:
+                        '// Runs before file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+                    },
+                  },
+                  postScript: {
+                    title: t('Post-callback Script'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'Input.TextArea',
+                    'x-component-props': {
+                      rows: 4,
+                      placeholder:
+                        '// Runs after file save\n// Access: callbackBody, fileRecord, collectionName, recordId',
+                    },
                   },
                 },
               },

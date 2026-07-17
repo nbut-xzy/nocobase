@@ -15,7 +15,7 @@ import { useT } from '../locale';
 
 interface OnlyOfficeSettings {
   documentServerUrl: string;
-  callbackUrl: string;
+  jwtSecret: string;
 }
 
 export default function OnlyOfficeSettingsPage() {
@@ -74,11 +74,11 @@ export default function OnlyOfficeSettingsPage() {
         </Form.Item>
 
         <Form.Item
-          label={t('Callback URL')}
-          name="callbackUrl"
-          help={t('The callback URL for saving documents, e.g. https://your-app.com/api/onlyoffice/callback')}
+          label={t('JWT Secret')}
+          name="jwtSecret"
+          help={t('JWT secret for validating OnlyOffice callback requests, leave empty to skip')}
         >
-          <Input placeholder="https://your-app.com/api/onlyoffice/callback" />
+          <Input.Password placeholder="" />
         </Form.Item>
 
         <Form.Item>
