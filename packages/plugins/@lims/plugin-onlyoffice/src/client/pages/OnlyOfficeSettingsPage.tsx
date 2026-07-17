@@ -76,7 +76,6 @@ export default function OnlyOfficeSettingsPage() {
         <Form.Item
           label={t('Callback URL')}
           name="callbackUrl"
-          rules={[{ required: true, message: t('Please enter the Callback URL') }]}
           help={t('The callback URL for saving documents, e.g. https://your-app.com/api/onlyoffice/callback')}
         >
           <Input placeholder="https://your-app.com/api/onlyoffice/callback" />

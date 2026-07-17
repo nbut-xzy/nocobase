@@ -43,6 +43,30 @@ export class PluginOnlyofficeServer extends Plugin {
     });
 
     this.app.acl.allow('onlyofficeSettings', 'get', 'loggedIn');
+
+    this.app.resourceManager.define({
+      name: 'onlyoffice',
+      actions: {
+        async getKey(ctx, next) {
+          const { fileUrl } = ctx.action?.params?.values || {};
+          if (!fileUrl) {
+            ctx.throw(400, 'fileUrl is required');
+          }
+
+          const repo = ctx.db.getRepository('onlyofficeDocumentKeys');
+          let record = await repo.findOne({ filter: { fileUrl } });
+          if (!record) {
+            const newKey = crypto.randomUUID();
+            record = await repo.create({ values: { fileUrl, docKey: newKey } });
+          }
+
+          ctx.body = { key: record.docKey };
+          await next();
+        },
+      },
+    });
+
+    this.app.acl.allow('onlyoffice', 'getKey', 'loggedIn');
   }
 
   async install(options?: InstallOptions) {}

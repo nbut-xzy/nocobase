@@ -7,16 +7,37 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { ISchema, useField, useFieldSchema } from '@formily/react';
+import { ISchema, useField, useFieldSchema, useForm } from '@formily/react';
 import {
   SchemaSettings,
   SchemaSettingsBlockHeightItem,
   SchemaSettingsLinkageRules,
   LinkageRuleCategory,
   useDesignable,
+  useVariableOptions,
+  Variable,
+  FlagProvider,
 } from '@nocobase/client';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+
+const OnlyOfficeProvider = (props) => {
+  return <FlagProvider collectionField={true}>{props.children}</FlagProvider>;
+};
+
+const getVariableComponentWithScope = (Com) => {
+  return (props) => {
+    const fieldSchema = useFieldSchema();
+    const form = useForm();
+    const scope = useVariableOptions({
+      collectionField: { uiSchema: fieldSchema },
+      uiSchema: fieldSchema,
+      form,
+      noDisabled: true,
+    });
+    return <Com {...props} scope={scope} />;
+  };
+};
 
 const commonOptions: any = {
   items: [
@@ -35,7 +56,6 @@ const commonOptions: any = {
           props.fileUrl = values.fileUrl;
           props.mode = values.mode;
           props.title = values.title || undefined;
-          props.fileKey = values.fileKey || undefined;
           props.documentServerUrl = values.documentServerUrl || undefined;
           props.callbackUrl = values.callbackUrl || undefined;
           fieldSchema['x-component-props'] = props;
@@ -55,7 +75,6 @@ const commonOptions: any = {
               fileUrl: componentProps.fileUrl || '',
               mode: componentProps.mode || 'edit',
               title: componentProps.title || '',
-              fileKey: componentProps.fileKey || '',
               documentServerUrl: componentProps.documentServerUrl || '',
               callbackUrl: componentProps.callbackUrl || '',
             };
@@ -64,51 +83,55 @@ const commonOptions: any = {
             type: 'object',
             title: t('Edit OnlyOffice'),
             properties: {
-              fileUrl: {
-                title: t('File URL'),
-                type: 'string',
-                'x-decorator': 'FormItem',
-                'x-component': 'Input',
-                required: true,
-                description: t('Where the OnlyOffice server can download the document file'),
-              },
-              mode: {
-                title: t('Mode'),
-                'x-component': 'Radio.Group',
-                'x-decorator': 'FormItem',
-                required: true,
-                default: 'edit',
-                enum: [
-                  { value: 'edit', label: t('Edit') },
-                  { value: 'view', label: t('View') },
-                ],
-              },
-              title: {
-                title: t('Document Title'),
-                type: 'string',
-                'x-decorator': 'FormItem',
-                'x-component': 'Input',
-              },
-              fileKey: {
-                title: t('File Key'),
-                type: 'string',
-                'x-decorator': 'FormItem',
-                'x-component': 'Input',
-                description: t('Optional unique key for identifying the document'),
-              },
-              documentServerUrl: {
-                title: t('Document Server URL (optional)'),
-                type: 'string',
-                'x-decorator': 'FormItem',
-                'x-component': 'Input',
-                description: t('If empty, the global default will be used'),
-              },
-              callbackUrl: {
-                title: t('Callback URL (optional)'),
-                type: 'string',
-                'x-decorator': 'FormItem',
-                'x-component': 'Input',
-                description: t('If empty, the global default will be used'),
+              container: {
+                type: 'void',
+                'x-component': OnlyOfficeProvider,
+                properties: {
+                  fileUrl: {
+                    title: t('File URL'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': getVariableComponentWithScope(Variable.TextArea),
+                    'x-component-props': {
+                      placeholder: 'http://localhost{{ ctx.record.path }}',
+                    },
+                    description: t('Where the OnlyOffice server can download the document file'),
+                  },
+                  mode: {
+                    title: t('Mode'),
+                    'x-component': 'Radio.Group',
+                    'x-decorator': 'FormItem',
+                    required: true,
+                    default: 'edit',
+                    enum: [
+                      { value: 'edit', label: t('Edit') },
+                      { value: 'view', label: t('View') },
+                    ],
+                  },
+                  title: {
+                    title: t('Document Title'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'Input',
+                  },
+                  documentServerUrl: {
+                    title: t('Document Server URL (optional)'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'Input',
+                    description: t('If empty, the global default will be used'),
+                  },
+                  callbackUrl: {
+                    title: t('Callback URL (optional)'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': getVariableComponentWithScope(Variable.TextArea),
+                    'x-component-props': {
+                      placeholder: '/api/collection:update/{{ ctx.record.id }}',
+                    },
+                    description: t('If empty, the global default will be used'),
+                  },
+                },
               },
             },
           } as ISchema,

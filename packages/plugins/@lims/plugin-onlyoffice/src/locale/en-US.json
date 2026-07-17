@@ -12,8 +12,6 @@
   "Edit": "Edit",
   "View": "View",
   "Document Title": "Document Title",
-  "File Key": "File Key",
-  "Optional unique key for identifying the document": "Optional unique key for identifying the document",
   "Document Server URL (optional)": "Document Server URL (optional)",
   "If empty, the global default will be used": "If empty, the global default will be used",
   "Callback URL (optional)": "Callback URL (optional)",
@@ -35,5 +33,6 @@
   "Saved successfully": "Saved successfully",
   "Save failed": "Save failed",
   "Please configure the OnlyOffice Document Server URL in plugin settings or block settings.": "Please configure the OnlyOffice Document Server URL in plugin settings or block settings.",
-  "Please provide a file URL.": "Please provide a file URL."
+  "Please provide a file URL.": "Please provide a file URL.",
+  "fileUrl is required for key generation": "fileUrl is required for key generation"
 }

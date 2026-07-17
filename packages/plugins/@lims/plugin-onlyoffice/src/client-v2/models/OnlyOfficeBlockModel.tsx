@@ -8,12 +8,12 @@
  */
 
 import { DocumentEditor } from '@onlyoffice/document-editor-react';
-import type { Config } from '@onlyoffice/doceditor-types';
-import { observer, useFlowContext } from '@nocobase/flow-engine';
+import type { Config, FileType, Lang } from '@onlyoffice/doceditor-types';
+import { SingleRecordResource, observer, useFlowContext } from '@nocobase/flow-engine';
 import { css } from '@emotion/css';
 import { Card, Spin } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { BlockModel } from '@nocobase/client-v2';
+import { CollectionBlockModel, BlockSceneEnum, TextAreaWithContextSelector } from '@nocobase/client-v2';
 import { tExpr, useT } from '../locale';
 
 const onlyofficeCardClass = css`
@@ -94,7 +94,6 @@ interface OnlyOfficeEditorProps {
   fileType?: string;
   mode?: string;
   title?: string;
-  fileKey?: string;
   documentServerUrl?: string;
   callbackUrl?: string;
   lang?: string;
@@ -106,7 +105,12 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
   const t = useT();
   const [globalSettings, setGlobalSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [resolvedFileUrl, setResolvedFileUrl] = useState('');
+  const [resolvedCbUrl, setResolvedCbUrl] = useState('');
+  const [resolving, setResolving] = useState(true);
+  const [docKey, setDocKey] = useState('');
 
+  // 获取全局配置
   useEffect(() => {
     let active = true;
     async function fetchSettings() {
@@ -128,9 +132,64 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
   }, [ctx.api]);
 
   const serverUrl = props.documentServerUrl || globalSettings.documentServerUrl;
-  const cbUrl = props.callbackUrl || globalSettings.callbackUrl;
+  const rawCbUrl = props.callbackUrl || globalSettings.callbackUrl;
 
-  if (loading) {
+  // 解析模板变量（fileUrl/callbackUrl 支持 {{ ctx.record.xxx }}）
+  useEffect(() => {
+    let active = true;
+    async function resolveTemplates() {
+      try {
+        const record = ctx.record;
+        // fileUrl: 显式配置 > ctx.record.url
+        const rawUrl = props.fileUrl || record?.url || '';
+        const urlResolved =
+          typeof rawUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawUrl, ctx) : rawUrl || '';
+        const cbResolved =
+          typeof rawCbUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawCbUrl, ctx) : rawCbUrl || '';
+        if (active) {
+          setResolvedFileUrl(urlResolved || '');
+          setResolvedCbUrl(cbResolved || '');
+        }
+      } catch {
+        if (active) {
+          setResolvedFileUrl(props.fileUrl || '');
+          setResolvedCbUrl(rawCbUrl || '');
+        }
+      } finally {
+        if (active) setResolving(false);
+      }
+    }
+    resolveTemplates();
+    return () => {
+      active = false;
+    };
+  }, [props.fileUrl, rawCbUrl, ctx]);
+
+  // 获取文档 key（同一 fileUrl 返回相同 key）
+  useEffect(() => {
+    if (!resolvedFileUrl) return;
+    let active = true;
+    async function fetchKey() {
+      try {
+        const res = await ctx.api.request({
+          url: 'onlyoffice:getKey',
+          method: 'post',
+          data: { fileUrl: resolvedFileUrl },
+        });
+        if (active && res?.data?.data?.key) {
+          setDocKey(res.data.data.key);
+        }
+      } catch {
+        if (active) setDocKey(encodeURIComponent(resolvedFileUrl));
+      }
+    }
+    fetchKey();
+    return () => {
+      active = false;
+    };
+  }, [resolvedFileUrl, ctx.api]);
+
+  if (loading || resolving) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
         <Spin />
@@ -144,14 +203,12 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     );
   }
 
-  if (!props.fileUrl) {
+  if (!resolvedFileUrl) {
     return <Card>{t('Please provide a file URL.')}</Card>;
   }
 
-  const detected = detectFromUrl(props.fileUrl);
-
+  const detected = detectFromUrl(resolvedFileUrl);
   const resolvedDocType = props.documentType || detected?.documentType || 'word';
-
   const resolvedFileType =
     props.fileType ||
     detected?.fileType ||
@@ -163,25 +220,26 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
           ? 'pptx'
           : 'pdf');
 
-  const fileKey = props.fileKey
-    ? `${props.fileKey}_${Date.now()}`
-    : `${encodeURIComponent(props.fileUrl)}_${Date.now()}`;
+  const record = ctx.record;
+  const resolvedTitle = props.title || record?.title || 'Document';
+
+  const key = docKey;
 
   const config: Config = {
     document: {
-      fileType: resolvedFileType,
-      key: fileKey,
-      title: props.title || 'Document',
-      url: props.fileUrl,
+      fileType: resolvedFileType as FileType,
+      key,
+      title: resolvedTitle,
+      url: resolvedFileUrl,
     },
     documentType: resolvedDocType as Config['documentType'],
     editorConfig: {
-      callbackUrl: cbUrl || '',
+      callbackUrl: resolvedCbUrl || '',
       mode: (props.mode as 'edit' | 'view') || 'edit',
-      lang: props.lang || (ctx.locale?.startsWith('zh') ? 'zh' : 'en'),
+      lang: (props.lang || (ctx.locale?.startsWith('zh') ? 'zh' : 'en')) as Lang,
       user: {
-        id: String(ctx.viewer?.id || 'anonymous'),
-        name: ctx.viewer?.nickname || 'User',
+        id: String((ctx.viewer as unknown as Record<string, unknown>)?.id || 'anonymous'),
+        name: String((ctx.viewer as unknown as Record<string, unknown>)?.nickname || 'User'),
       },
     },
   };
@@ -199,11 +257,54 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
 
 OnlyOfficeEditor.displayName = 'OnlyOfficeEditor';
 
-export class OnlyOfficeBlockModel extends BlockModel {
+export class OnlyOfficeBlockModel extends CollectionBlockModel {
+  static scene = BlockSceneEnum.one;
+  collectionRequired = false; // 支持无集合绑定的独立使用
+
+  createResource(ctx, params) {
+    return ctx.createResource(SingleRecordResource);
+  }
+
+  getCurrentRecord() {
+    return this.resource?.getData?.() || null;
+  }
+
+  protected defaultBlockTitle() {
+    const params = this.getStepParams('resourceSettings', 'init');
+    return params?.dataSourceKey ? super.defaultBlockTitle() : 'OnlyOffice';
+  }
+
   onInit(options: any): void {
+    if (!this.getStepParams('resourceSettings', 'init')) {
+      this.setStepParams('resourceSettings', 'init', {});
+    }
     super.onInit(options);
+
     this.setDecoratorProps({
       className: [this.decoratorProps.className, onlyofficeCardClass].filter(Boolean).join(' '),
+    });
+
+    this.context.defineProperty('record', {
+      get: () => this.getCurrentRecord(),
+      cache: false,
+    });
+
+    this.context.defineProperty('onlyoffice', {
+      get: () => ({
+        get editorId() {
+          return `onlyoffice-${this.uid}`;
+        },
+        get editor() {
+          return (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+        },
+        get isReady() {
+          return !!(window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+        },
+        showMessage(msg: string) {
+          const inst = (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+          inst?.showMessage(msg);
+        },
+      }),
     });
   }
 
@@ -226,8 +327,10 @@ OnlyOfficeBlockModel.registerFlow({
             title: t('File URL'),
             type: 'string',
             'x-decorator': 'FormItem',
-            'x-component': 'Input',
-            required: true,
+            'x-component': TextAreaWithContextSelector,
+            'x-component-props': {
+              placeholder: 'http://localhost{{ ctx.record.path }}',
+            },
             description: t('Where the OnlyOffice server can download the document file'),
           },
           mode: {
@@ -247,13 +350,6 @@ OnlyOfficeBlockModel.registerFlow({
             'x-decorator': 'FormItem',
             'x-component': 'Input',
           },
-          fileKey: {
-            title: t('File Key'),
-            type: 'string',
-            'x-decorator': 'FormItem',
-            'x-component': 'Input',
-            description: t('Optional unique key for identifying the document'),
-          },
           documentServerUrl: {
             title: t('Document Server URL (optional)'),
             type: 'string',
@@ -265,32 +361,20 @@ OnlyOfficeBlockModel.registerFlow({
             title: t('Callback URL (optional)'),
             type: 'string',
             'x-decorator': 'FormItem',
-            'x-component': 'Input',
+            'x-component': TextAreaWithContextSelector,
+            'x-component-props': {
+              placeholder: '/api/collection:update/{{ ctx.record.id }}',
+            },
             description: t('If empty, the global default will be used'),
           },
         };
       },
       async handler(ctx, params) {
-        const { fileUrl, mode, title, fileKey, documentServerUrl, callbackUrl } = params;
-        const detected = detectFromUrl(fileUrl);
-        const documentType = params.documentType || detected?.documentType || 'word';
-        const fileType =
-          params.fileType ||
-          detected?.fileType ||
-          (documentType === 'word'
-            ? 'docx'
-            : documentType === 'cell'
-              ? 'xlsx'
-              : documentType === 'slide'
-                ? 'pptx'
-                : 'pdf');
+        const { fileUrl, mode, title, documentServerUrl, callbackUrl } = params;
         ctx.model.setProps({
           fileUrl,
-          documentType,
-          fileType,
           mode,
           title,
-          fileKey,
           documentServerUrl,
           callbackUrl,
         });
@@ -302,4 +386,8 @@ OnlyOfficeBlockModel.registerFlow({
 OnlyOfficeBlockModel.define({
   label: tExpr('OnlyOffice'),
   group: 'otherBlocks',
+  searchable: true,
+  createModelOptions: {
+    use: 'OnlyOfficeBlockModel',
+  },
 });

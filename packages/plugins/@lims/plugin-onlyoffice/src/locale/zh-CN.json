@@ -12,8 +12,6 @@
   "Edit": "编辑",
   "View": "查看",
   "Document Title": "文档标题",
-  "File Key": "文件标识",
-  "Optional unique key for identifying the document": "可选，文档的唯一标识",
   "Document Server URL (optional)": "文档服务器地址（可选）",
   "If empty, the global default will be used": "留空则使用全局默认配置",
   "Callback URL (optional)": "回调地址（可选）",
@@ -35,5 +33,6 @@
   "Saved successfully": "保存成功",
   "Save failed": "保存失败",
   "Please configure the OnlyOffice Document Server URL in plugin settings or block settings.": "请在插件设置或区块设置中配置 OnlyOffice 文档服务器地址。",
-  "Please provide a file URL.": "请提供文件地址。"
+  "Please provide a file URL.": "请提供文件地址。",
+  "fileUrl is required for key generation": "生成文档密钥需要提供文件URL"
 }

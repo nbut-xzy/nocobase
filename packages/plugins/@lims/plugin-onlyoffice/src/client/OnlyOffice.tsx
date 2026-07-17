@@ -10,6 +10,7 @@
 import { DocumentEditor } from '@onlyoffice/document-editor-react';
 import { observer, useField } from '@formily/react';
 import { useAPIClient, useBlockHeight } from '@nocobase/client';
+import { useFlowContext } from '@nocobase/flow-engine';
 import { Card, Spin } from 'antd';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -85,6 +86,7 @@ export const OnlyOffice: any = observer(
     const { t } = useTranslation();
     const api = useAPIClient();
     const height = useBlockHeight();
+    const ctx = useFlowContext();
     const componentProps = { ...props, ...(field.componentProps || {}) };
     const {
       fileUrl,
@@ -92,29 +94,73 @@ export const OnlyOffice: any = observer(
       fileType,
       mode = 'edit',
       title: docTitle,
-      fileKey,
       documentServerUrl,
       callbackUrl,
       lang,
     } = componentProps;
 
-    const detected = detectFromUrl(fileUrl);
-
-    const resolvedDocType = documentType || detected?.documentType || 'word';
-
-    const resolvedFileType =
-      fileType ||
-      detected?.fileType ||
-      (resolvedDocType === 'word'
-        ? 'docx'
-        : resolvedDocType === 'cell'
-          ? 'xlsx'
-          : resolvedDocType === 'slide'
-            ? 'pptx'
-            : 'pdf');
-
     const [globalSettings, setGlobalSettings] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
+    const [resolvedFileUrl, setResolvedFileUrl] = useState('');
+    const [resolvedCbUrl, setResolvedCbUrl] = useState('');
+    const [resolving, setResolving] = useState(true);
+    const [docKey, setDocKey] = useState('');
+
+    const record = ctx.record;
+
+    useEffect(() => {
+      let active = true;
+      async function resolveTemplates() {
+        try {
+          // fileUrl: 显式配置 > ctx.record.url
+          const rawUrl = fileUrl || record?.url || '';
+          const urlResolved =
+            typeof rawUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawUrl, ctx) : rawUrl || '';
+          const cbRaw = callbackUrl || globalSettings.callbackUrl;
+          const cbResolved =
+            typeof cbRaw === 'string' ? await ctx.liquid.renderWithFullContext(cbRaw, ctx) : cbRaw || '';
+          if (active) {
+            setResolvedFileUrl(urlResolved || '');
+            setResolvedCbUrl(cbResolved || '');
+          }
+        } catch {
+          if (active) {
+            setResolvedFileUrl(fileUrl || '');
+            setResolvedCbUrl(callbackUrl || globalSettings.callbackUrl || '');
+          }
+        } finally {
+          if (active) setResolving(false);
+        }
+      }
+      resolveTemplates();
+      return () => {
+        active = false;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fileUrl, callbackUrl, globalSettings.callbackUrl, ctx]);
+
+    useEffect(() => {
+      if (!resolvedFileUrl) return;
+      let active = true;
+      async function fetchKey() {
+        try {
+          const res: any = await api.request({
+            url: 'onlyoffice:getKey',
+            method: 'post',
+            data: { fileUrl: resolvedFileUrl },
+          });
+          if (active && res?.data?.data?.key) {
+            setDocKey(res.data.data.key);
+          }
+        } catch {
+          if (active) setDocKey(encodeURIComponent(resolvedFileUrl));
+        }
+      }
+      fetchKey();
+      return () => {
+        active = false;
+      };
+    }, [resolvedFileUrl, api]);
 
     useEffect(() => {
       let active = true;
@@ -139,7 +185,7 @@ export const OnlyOffice: any = observer(
     const serverUrl = documentServerUrl || globalSettings.documentServerUrl;
     const cbUrl = callbackUrl || globalSettings.callbackUrl;
 
-    if (loading) {
+    if (loading || resolving) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: height || 200 }}>
           <Spin />
@@ -155,22 +201,35 @@ export const OnlyOffice: any = observer(
       );
     }
 
-    if (!fileUrl) {
+    if (!resolvedFileUrl) {
       return <Card style={{ marginBottom: 24 }}>{t('Please provide a file URL.')}</Card>;
     }
 
-    const key = fileKey ? `${fileKey}_${Date.now()}` : `${encodeURIComponent(fileUrl)}_${Date.now()}`;
+    const detected = detectFromUrl(resolvedFileUrl);
+    const resolvedDocType = documentType || detected?.documentType || 'word';
+    const resolvedFileType =
+      fileType ||
+      detected?.fileType ||
+      (resolvedDocType === 'word'
+        ? 'docx'
+        : resolvedDocType === 'cell'
+          ? 'xlsx'
+          : resolvedDocType === 'slide'
+            ? 'pptx'
+            : 'pdf');
+
+    const key = docKey;
 
     const config: any = {
       document: {
         fileType: resolvedFileType,
         key,
-        title: docTitle || 'Document',
-        url: fileUrl,
+        title: docTitle || record?.title || 'Document',
+        url: resolvedFileUrl,
       },
       documentType: resolvedDocType,
       editorConfig: {
-        callbackUrl: cbUrl || '',
+        callbackUrl: resolvedCbUrl || '',
         mode: mode,
         lang: lang || 'en',
       },
