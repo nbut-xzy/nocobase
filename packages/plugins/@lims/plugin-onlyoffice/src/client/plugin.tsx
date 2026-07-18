@@ -8,7 +8,7 @@
  */
 
 import { Plugin } from '@nocobase/client';
-import { OnlyOfficeBlockProvider } from './OnlyOfficeBlockProvider';
+import { OnlyOfficeSchemaComponentProvider } from './OnlyOfficeBlockProvider';
 import { onlyofficeBlockSchemaSettings } from './schemaSettings';
 import { OnlyOfficeBlockModel } from '../client-v2/models/OnlyOfficeBlockModel';
 import OnlyOfficeSettingsPage from './pages/OnlyOfficeSettingsPage';
@@ -16,7 +16,7 @@ import OnlyOfficeSettingsPage from './pages/OnlyOfficeSettingsPage';
 export class PluginOnlyofficeClient extends Plugin {
   async load() {
     this.app.schemaSettingsManager.add(onlyofficeBlockSchemaSettings);
-    this.app.use(OnlyOfficeBlockProvider);
+    this.app.use(OnlyOfficeSchemaComponentProvider);
 
     const blockInitializers = this.app.schemaInitializerManager.get('page:addBlock');
     blockInitializers?.add('otherBlocks.onlyoffice', {

@@ -9,7 +9,7 @@
 
 import { DocumentEditor } from '@onlyoffice/document-editor-react';
 import { observer, useField, useFieldSchema } from '@formily/react';
-import { useAPIClient, useBlockHeight } from '@nocobase/client';
+import { useAPIClient, useBlockHeight, useCollectionRecordData } from '@nocobase/client';
 import { useFlowContext } from '@nocobase/flow-engine';
 import { Card, Spin, message } from 'antd';
 import React, { useEffect, useState } from 'react';
@@ -44,7 +44,8 @@ export const OnlyOffice: any = observer(
     const [resolving, setResolving] = useState(true);
     const [docKey, setDocKey] = useState('');
 
-    const record = ctx.record;
+    const collectionRecordData = useCollectionRecordData();
+    const record = ctx.record || collectionRecordData;
 
     useEffect(() => {
       let active = true;
@@ -94,7 +95,8 @@ export const OnlyOffice: any = observer(
 
       async function openDocument() {
         try {
-          const collectionName = (ctx as any).collectionName || (ctx as any).collection?.name || null;
+          const decoratorProps = fieldSchema['x-decorator-props'] || {};
+          const collectionName = (ctx as any).collection?.name || decoratorProps.collection || null;
           const blockUid = fieldSchema['x-uid'];
 
           // Step 1: 查询是否已有 key

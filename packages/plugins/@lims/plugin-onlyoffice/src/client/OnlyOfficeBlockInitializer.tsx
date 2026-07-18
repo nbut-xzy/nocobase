@@ -22,7 +22,8 @@ export const OnlyOfficeBlockInitializer = () => {
         insert({
           type: 'void',
           'x-settings': 'blockSettings:onlyoffice',
-          'x-decorator': 'BlockItem',
+          'x-decorator': 'OnlyOfficeBlockProvider',
+          'x-use-decorator-props': 'useOnlyOfficeDecoratorProps',
           'x-decorator-props': {
             name: 'onlyoffice',
           },

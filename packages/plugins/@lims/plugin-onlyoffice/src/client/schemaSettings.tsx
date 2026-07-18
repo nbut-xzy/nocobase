@@ -83,10 +83,18 @@ const commonOptions: any = {
           props.relationKeyField = values.relationKeyField || undefined;
           fieldSchema['x-component-props'] = props;
           field.componentProps = { ...props };
+
+          // Also update decorator props for collection/dataSource
+          const decoratorProps = fieldSchema['x-decorator-props'] || {};
+          decoratorProps.collection = values.collection || undefined;
+          decoratorProps.dataSource = values.dataSource || undefined;
+          fieldSchema['x-decorator-props'] = decoratorProps;
+
           dn.emit('patch', {
             schema: {
               'x-uid': fieldSchema['x-uid'],
               'x-component-props': props,
+              'x-decorator-props': decoratorProps,
             },
           });
         };
@@ -94,6 +102,7 @@ const commonOptions: any = {
         return {
           title: t('Edit OnlyOffice'),
           asyncGetInitialValues: async () => {
+            const decoratorProps = fieldSchema['x-decorator-props'] || {};
             return {
               fileUrl: componentProps.fileUrl || '',
               mode: componentProps.mode || 'edit',
@@ -103,6 +112,8 @@ const commonOptions: any = {
               preScript: componentProps.preScript || '',
               postScript: componentProps.postScript || '',
               relationKeyField: componentProps.relationKeyField || '',
+              collection: decoratorProps.collection || '',
+              dataSource: decoratorProps.dataSource || '',
             };
           },
           schema: {
@@ -133,6 +144,25 @@ const commonOptions: any = {
                       { value: 'edit', label: t('Edit') },
                       { value: 'view', label: t('View') },
                     ],
+                  },
+                  collection: {
+                    title: t('Collection'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'CollectionSelect',
+                    'x-component-props': {
+                      allowClear: true,
+                    },
+                    description: t(
+                      'Select a collection to enable record-aware template variables (e.g., {{ ctx.record.path }})',
+                    ),
+                  },
+                  dataSource: {
+                    title: t('Data source'),
+                    type: 'string',
+                    'x-decorator': 'FormItem',
+                    'x-component': 'Input',
+                    description: t('Data source key for the collection'),
                   },
                   title: {
                     title: t('Document Title'),

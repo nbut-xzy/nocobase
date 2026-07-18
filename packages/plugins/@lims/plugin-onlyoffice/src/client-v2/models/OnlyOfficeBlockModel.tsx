@@ -42,6 +42,7 @@ interface OnlyOfficeEditorProps {
   preScript?: string;
   postScript?: string;
   relationKeyField?: string;
+  collectionName?: string | null;
 }
 
 const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
@@ -127,7 +128,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
 
     async function openDocument() {
       try {
-        const collectionName = (ctx as any).collectionName || (ctx as any).collection?.name || null;
+        const collectionName = props.collectionName ?? null;
 
         // Step 1: 查询是否已有 key
         const getKeyRes = await ctx.api.request({
@@ -238,7 +239,7 @@ OnlyOfficeEditor.displayName = 'OnlyOfficeEditor';
 function computeRelationKeyFieldOptions(ctx: any): { label: string; value: string }[] {
   const collection = ctx.model?.context?.collection;
   if (!collection) return [];
-  const fields = collection.fields || [];
+  const fields = collection.getFields();
   return fields
     .filter((f: any) => {
       const iface = f.interface || f.options?.interface;
@@ -323,20 +324,22 @@ export class OnlyOfficeBlockModel extends CollectionBlockModel {
   }
 
   renderComponent() {
-    return <OnlyOfficeEditor uid={this.uid} {...this.props} />;
+    const params = this.getResourceSettingsInitParams();
+    const collectionName = params?.collectionName || null;
+    return <OnlyOfficeEditor uid={this.uid} collectionName={collectionName} {...this.props} />;
   }
 }
 
 OnlyOfficeBlockModel.registerFlow({
   key: 'onlyofficeBlockSettings',
   title: tExpr('OnlyOffice block setting'),
-  on: 'beforeRender',
+  sort: 500,
   steps: {
     editOnlyOffice: {
       title: tExpr('Edit OnlyOffice'),
       uiSchema(ctx) {
         const t = ctx.t;
-        // const relationKeyFieldOptions = computeRelationKeyFieldOptions(ctx);
+        const relationKeyFieldOptions = computeRelationKeyFieldOptions(ctx);
         return {
           fileUrl: {
             title: t('File URL'),
@@ -390,7 +393,7 @@ OnlyOfficeBlockModel.registerFlow({
             required: true,
             'x-component-props': {
               placeholder: t('Select a belongsTo field targeting a file table'),
-              // options: relationKeyFieldOptions,
+              options: relationKeyFieldOptions,
             },
             description: t('Updated with the edited file after OnlyOffice saves'),
           },

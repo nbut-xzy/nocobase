@@ -161,6 +161,7 @@ export class PluginOnlyofficeServer extends Plugin {
         },
 
         async callback(ctx, next) {
+          ctx.withoutDataWrapping = true;
           try {
             // Step 0: JWT 鉴权（若配置）
             const settingsRepo = ctx.db.getRepository('onlyofficeSettings');
@@ -205,11 +206,12 @@ export class PluginOnlyofficeServer extends Plugin {
 
             const { fileUrl, uiSchemaBlockUid, collectionName, recordId } = keyRecord;
 
-            // Step 3: 从 uiSchema 读取回调配置
-            const uiSchemaRepo = ctx.db.getRepository('uiSchemas');
-            const uiSchemaNode = await uiSchemaRepo.findOne({ filterByTk: uiSchemaBlockUid });
-            const xProps = uiSchemaNode?.schema?.['x-component-props'] || {};
-            const { preScript, postScript, relationKeyField } = xProps;
+            // Step 3: 从 flowModels 读取回调配置（v2 区块配置存储在 flowModels 的 stepParams 中）
+            const flowModelsRepo = ctx.db.getRepository('flowModels');
+            const flowModel = await flowModelsRepo.findOne({ filterByTk: uiSchemaBlockUid });
+            const blockOptions = flowModel?.options || {};
+            const onlyofficeSettings = blockOptions?.stepParams?.onlyofficeBlockSettings?.editOnlyOffice || {};
+            const { preScript, postScript, relationKeyField } = onlyofficeSettings;
 
             // Step 4: 查询原始记录
             let originalRecord = null;
