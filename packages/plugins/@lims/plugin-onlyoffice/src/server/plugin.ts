@@ -8,7 +8,6 @@
  */
 
 import { InstallOptions, Plugin } from '@nocobase/server';
-import { Cache } from '@nocobase/cache';
 import path from 'path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -42,21 +41,11 @@ function resolveFullUrl(fileUrl: string, ctx: any): string {
 }
 
 export class PluginOnlyofficeServer extends Plugin {
-  cache: Cache;
-
   async afterAdd() {}
 
   async beforeLoad() {}
 
   async load() {
-    // ---- 缓存（并发保护 getKey / bind） ----
-
-    this.cache = await this.app.cacheManager.createCache({
-      name: 'onlyoffice',
-      prefix: 'onlyoffice',
-      store: 'memory',
-    });
-
     // ---- onlyofficeSettings resource (singleton get/set) ----
 
     this.app.resourceManager.define({
@@ -104,57 +93,115 @@ export class PluginOnlyofficeServer extends Plugin {
           }
 
           const fileUrl = resolveFullUrl(rawFileUrl, ctx);
+          const lockKey = `onlyoffice:${fileUrl}`;
 
-          const result = await plugin.cache.wrap(`lock:${fileUrl}`, async () => {
-            const repo = ctx.db.getRepository('onlyofficeDocumentKeys');
-            const record = await repo.findOne({ filter: { fileUrl } });
+          ctx.logger?.info?.(`[OnlyOffice getKey] Acquiring lock for fileUrl=${fileUrl}`);
+          const result = await plugin.app.lockManager.runExclusive(
+            lockKey,
+            async () => {
+              ctx.logger?.info?.(`[OnlyOffice getKey] Inside lock, fileUrl=${fileUrl}`);
+              const repo = ctx.db.getRepository('onlyofficeDocumentKeys');
+              const record = await repo.findOne({ filter: { fileUrl } });
+              ctx.logger?.info?.(
+                `[OnlyOffice getKey] findOne result: record=${JSON.stringify(
+                  record?.toJSON?.() ?? record,
+                )}, exists=${!!record}`,
+              );
 
-            if (record) {
-              return {
-                key: record.docKey,
-                fileUrl,
-                uiSchemaBlockUid: record.uiSchemaBlockUid,
-                recordId: record.recordId,
-              };
-            }
-            return null;
-          });
+              if (record) {
+                return {
+                  key: record.docKey,
+                  fileUrl,
+                  uiSchemaBlockUid: record.uiSchemaBlockUid,
+                  recordId: record.recordId,
+                };
+              }
+              return null;
+            },
+            10000,
+          );
+          ctx.logger?.info?.(`[OnlyOffice getKey] Lock resolved: ${JSON.stringify(result)}`);
 
           ctx.body = result;
           await next();
         },
 
         async bind(ctx, next) {
-          const { fileUrl: rawFileUrl, uiSchemaBlockUid, recordId, collectionName } = ctx.action?.params?.values || {};
+          const { fileUrl, uiSchemaBlockUid, recordId, collectionName } = ctx.action?.params?.values || {};
+          ctx.logger?.info?.(
+            `[OnlyOffice bind] fileUrl=${fileUrl}, uiSchemaBlockUid=${uiSchemaBlockUid}, recordId=${recordId}, collectionName=${collectionName}`,
+          );
 
-          if (!rawFileUrl || !uiSchemaBlockUid) {
+          if (!fileUrl || !uiSchemaBlockUid) {
             ctx.throw(400, ctx.t('fileUrl and uiSchemaBlockUid are required'));
             return;
           }
 
-          const fileUrl = resolveFullUrl(rawFileUrl, ctx);
+          const lockKey = `onlyoffice:${fileUrl}`;
+          ctx.logger?.info?.(`[OnlyOffice bind] Acquiring lock for fileUrl=${fileUrl}`);
+          let result;
+          try {
+            result = await plugin.app.lockManager.runExclusive(
+              lockKey,
+              async () => {
+                ctx.logger?.info?.(
+                  `[OnlyOffice bind] Inside lock, fileUrl=${fileUrl}, uiSchemaBlockUid=${uiSchemaBlockUid}, recordId=${recordId}, collectionName=${collectionName}`,
+                );
+                const repo = ctx.db.getRepository('onlyofficeDocumentKeys');
+                ctx.logger?.info?.(`[OnlyOffice bind] About to findOne for fileUrl=${fileUrl}`);
+                let record = await repo.findOne({ filter: { fileUrl } });
+                ctx.logger?.info?.(
+                  `[OnlyOffice bind] findOne result: record=${JSON.stringify(
+                    record?.toJSON?.() ?? record,
+                  )}, exists=${!!record}`,
+                );
 
-          const result = await plugin.cache.wrap(`lock:${fileUrl}`, async () => {
-            const repo = ctx.db.getRepository('onlyofficeDocumentKeys');
-            let record = await repo.findOne({ filter: { fileUrl } });
+                if (record) {
+                  ctx.logger?.info?.(
+                    `[OnlyOffice bind] Existing record found: docKey=${record.docKey}, uiSchemaBlockUid=${record.uiSchemaBlockUid}, comparing with input uiSchemaBlockUid=${uiSchemaBlockUid}`,
+                  );
+                  // 如果已有绑定记录，检查 uiSchemaBlockUid 是否一致
+                  if (record.uiSchemaBlockUid !== uiSchemaBlockUid) {
+                    ctx.logger?.warn?.(
+                      `[OnlyOffice bind] Block mismatch: existing=${record.uiSchemaBlockUid} !== input=${uiSchemaBlockUid}, throwing 409`,
+                    );
+                    ctx.throw(409, ctx.t('fileUrl is already bound to a different block'));
+                    return;
+                  }
+                  ctx.logger?.info?.(`[OnlyOffice bind] Block matched, returning existing record key=${record.docKey}`);
+                } else {
+                  ctx.logger?.info?.(`[OnlyOffice bind] No existing record, creating new key for fileUrl=${fileUrl}`);
+                  const newKey = crypto.randomUUID();
+                  ctx.logger?.info?.(`[OnlyOffice bind] Generated newKey=${newKey}, about to create record`);
+                  await repo.create({
+                    values: { fileUrl, docKey: newKey, uiSchemaBlockUid, collectionName, recordId },
+                  });
+                  ctx.logger?.info?.(`[OnlyOffice bind] Record created, re-fetching to confirm`);
+                  record = await repo.findOne({ filter: { fileUrl } });
+                  ctx.logger?.info?.(
+                    `[OnlyOffice bind] Re-fetch result: record=${JSON.stringify(
+                      record?.toJSON?.() ?? record,
+                    )}, docKey=${record?.docKey}`,
+                  );
+                }
 
-            if (record) {
-              // 已存在 → 更新关联信息（可能切换到其他区块或记录）
-              await repo.update({
-                values: { uiSchemaBlockUid, collectionName, recordId },
-                filter: { id: record.id },
-              });
-              record = await repo.findOne({ filter: { fileUrl } });
-            } else {
-              const newKey = crypto.randomUUID();
-              await repo.create({
-                values: { fileUrl, docKey: newKey, uiSchemaBlockUid, collectionName, recordId },
-              });
-              record = await repo.findOne({ filter: { fileUrl } });
-            }
-
-            return { key: record.docKey, fileUrl, uiSchemaBlockUid: record.uiSchemaBlockUid };
-          });
+                const returnValue = { key: record.docKey, fileUrl, uiSchemaBlockUid: record.uiSchemaBlockUid };
+                ctx.logger?.info?.(`[OnlyOffice bind] Returning from lock callback: ${JSON.stringify(returnValue)}`);
+                return returnValue;
+              },
+              10000,
+            );
+            ctx.logger?.info?.(`[OnlyOffice bind] Lock resolved: ${JSON.stringify(result)}`);
+          } catch (err: any) {
+            ctx.logger?.error?.(`[OnlyOffice bind] Lock failed: ${err.message}`, {
+              stack: err.stack,
+              fileUrl,
+              uiSchemaBlockUid,
+              recordId,
+              collectionName,
+            });
+            throw err;
+          }
 
           ctx.body = result;
           await next();
@@ -242,7 +289,14 @@ export class PluginOnlyofficeServer extends Plugin {
             if (status === 2 && url) {
               if (relationKeyField && collectionName && recordId && originalRecord) {
                 try {
-                  await plugin.saveFileAndUpdateRecord(ctx, url, collectionName, recordId, relationKeyField);
+                  await plugin.saveFileAndUpdateRecord(
+                    ctx,
+                    url,
+                    collectionName,
+                    recordId,
+                    relationKeyField,
+                    originalRecord,
+                  );
                   ctx.logger?.info?.(`[OnlyOffice callback] File saved for key=${key}`);
                 } catch (err: any) {
                   ctx.logger?.error?.(`[OnlyOffice callback] File save error: ${err.message}`);
@@ -298,6 +352,7 @@ export class PluginOnlyofficeServer extends Plugin {
     collectionName: string,
     recordId: number | string,
     relationKeyField: string,
+    originalRecord: any,
   ) {
     const fileManagerPlugin = this.app.pm.get('file-manager') as any;
     if (!fileManagerPlugin?.createFileRecord) {
@@ -324,34 +379,51 @@ export class PluginOnlyofficeServer extends Plugin {
       throw new Error(`[OnlyOffice] Target collection "${targetCollectionName}" must be a file table (template: file)`);
     }
 
-    // Step 2: 下载编辑后的文件
+    // Step 2: 从原始记录中获取关联的原文件 title 和 extname，用于新文件命名
+    let originalTitle = '';
+    let originalExt = '';
+    try {
+      const originalFileId = originalRecord?.[targetField.options?.foreignKey];
+      if (originalFileId) {
+        const targetRepo = ctx.db.getRepository(targetCollectionName);
+        const originalFile = await targetRepo.findOne({ filterByTk: originalFileId });
+        originalTitle = originalFile?.title || '';
+        originalExt = originalFile?.extname || '';
+        ctx.logger?.info?.(
+          `[OnlyOffice callback] Original file: title="${originalTitle}", ext="${originalExt}", id=${originalFileId}`,
+        );
+      }
+    } catch (err: any) {
+      ctx.logger?.warn?.(`[OnlyOffice callback] Failed to fetch original file info: ${err.message}`);
+    }
+
+    // Step 3: 下载编辑后的文件，在唯一临时目录中用原始文件名保存
     const response = await axios.get(downloadUrl, {
       responseType: 'arraybuffer',
       timeout: 60000,
     });
 
-    const tempFilePath = path.join(
-      os.tmpdir(),
-      `onlyoffice-callback-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    );
-    await fs.writeFile(tempFilePath, response.data as Buffer);
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'onlyoffice-callback-'));
+    const tempFileName = originalExt ? `${originalTitle || 'document'}${originalExt}` : originalTitle || 'document';
+    const tempFilePath = path.join(tempDir, tempFileName);
+    await fs.writeFile(tempFilePath, new Uint8Array(response.data as ArrayBuffer));
 
     try {
-      // Step 3: 在目标文件表中创建新文件记录
+      // Step 4: 在目标文件表中创建新文件记录（originalname 取自 tempFilePath，自动推导 title/filename）
       const newFileRecord = await fileManagerPlugin.createFileRecord({
         collectionName: targetCollectionName,
         filePath: tempFilePath,
       });
 
-      // Step 4: 更新原始记录的文件引用字段
+      // Step 5: 更新原始记录的文件引用字段
       const originalRepo = ctx.db.getRepository(collectionName);
       await originalRepo.update({
         values: { [relationKeyField]: newFileRecord.id },
         filter: { id: recordId },
       });
     } finally {
-      // Step 5: 清理临时文件
-      await fs.rm(tempFilePath, { force: true });
+      // Step 6: 清理临时目录
+      await fs.rm(tempDir, { recursive: true, force: true });
     }
   }
 

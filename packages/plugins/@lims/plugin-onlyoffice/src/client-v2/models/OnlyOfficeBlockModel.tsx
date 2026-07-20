@@ -10,11 +10,11 @@
 import { DocumentEditor } from '@onlyoffice/document-editor-react';
 import type { Config, FileType, Lang } from '@onlyoffice/doceditor-types';
 import {
-  buildRecordMeta,
-  inferRecordRef,
   SingleRecordResource,
   observer,
   useFlowContext,
+  createCurrentRecordMetaFactory,
+  createRecordResolveOnServerWithLocal,
   type PropertyMetaFactory,
 } from '@nocobase/flow-engine';
 import { css } from '@emotion/css';
@@ -43,6 +43,72 @@ interface OnlyOfficeEditorProps {
   postScript?: string;
   relationKeyField?: string;
   collectionName?: string | null;
+}
+
+export class OnlyOfficeBlockModel extends CollectionBlockModel {
+  static scene = BlockSceneEnum.one;
+  collectionRequired = false;
+
+  createResource(ctx, params) {
+    return ctx.createResource(SingleRecordResource);
+  }
+
+  getCurrentRecord() {
+    return this.resource?.getData?.() || null;
+  }
+
+  onInit(options: any): void {
+    super.onInit(options);
+
+    this.setDecoratorProps({
+      className: [this.decoratorProps.className, onlyofficeCardClass].filter(Boolean).join(' '),
+    });
+
+    // ctx.record meta
+    const recordMeta: PropertyMetaFactory = createCurrentRecordMetaFactory(this.context, () => this.collection);
+
+    this.context.defineProperty('record', {
+      get: () => this.getCurrentRecord(),
+      cache: false,
+      resolveOnServer: createRecordResolveOnServerWithLocal(
+        () => this.collection,
+        () => this.getCurrentRecord(),
+      ),
+      meta: recordMeta,
+    });
+
+    this.context.defineProperty('onlyoffice', {
+      get: () => ({
+        get editorId() {
+          return `onlyoffice-${this.uid}`;
+        },
+        get editor() {
+          return (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+        },
+        get isReady() {
+          return !!(window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+        },
+        showMessage(msg: string) {
+          const documentEditor = (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+          documentEditor?.showMessage(msg);
+        },
+      }),
+    });
+  }
+
+  renderComponent() {
+    return <OnlyOfficeEditor uid={this.uid} {...this.props} />;
+  }
+
+  onUnmount(): void {
+    console.log('OnlyOfficeBlockModel onUnmount');
+    const documentEditor = (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
+    console.log('OnlyOfficeBlockModel onUnmount: documentEditor:', documentEditor);
+    documentEditor?.requestClose();
+    console.log('OnlyOfficeBlockModel onUnmount: requestClose called');
+    super.onUnmount();
+    console.log('OnlyOfficeBlockModel onUnmount: super.onUnmount called');
+  }
 }
 
 const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
@@ -85,14 +151,14 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     async function resolveTemplates() {
       const apiOrigin = (() => {
         try {
-          return new URL(ctx.api.axios.defaults.baseURL).origin;
+          return new URL(ctx.api.axios.defaults.baseURL ?? '', window.location.href).origin;
         } catch {
           return '';
         }
       })();
       const toAbsolute = (u: string) => {
         if (!u || /^https?:\/\//i.test(u) || !apiOrigin) return u;
-        return u.startsWith('/') ? `${apiOrigin}${u}` : `${apiOrigin}/${u}`;
+        return u?.startsWith?.('/') ? `${apiOrigin}${u}` : `${apiOrigin}/${u}`;
       };
       try {
         const record = ctx.record;
@@ -103,12 +169,12 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
           typeof rawCbUrl === 'string' ? await ctx.liquid.renderWithFullContext(rawCbUrl, ctx) : rawCbUrl || '';
         if (active) {
           setResolvedFileUrl(toAbsolute(urlResolved || ''));
-          setResolvedCbUrl(cbResolved || '');
+          setResolvedCbUrl(toAbsolute(cbResolved || ''));
         }
       } catch {
         if (active) {
           setResolvedFileUrl(toAbsolute(props.fileUrl || ''));
-          setResolvedCbUrl(rawCbUrl || '');
+          setResolvedCbUrl(toAbsolute(rawCbUrl || ''));
         }
       } finally {
         if (active) setResolving(false);
@@ -128,8 +194,6 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
 
     async function openDocument() {
       try {
-        const collectionName = props.collectionName ?? null;
-
         // Step 1: 查询是否已有 key
         const getKeyRes = await ctx.api.request({
           url: 'onlyoffice:getKey',
@@ -157,7 +221,7 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
               fileUrl: resolvedFileUrl,
               uiSchemaBlockUid: props.uid,
               recordId: ctx.record?.id || null,
-              collectionName,
+              collectionName: ctx.collection?.name || null,
             },
           });
           if (active && bindRes?.data?.data?.key) {
@@ -177,14 +241,6 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedFileUrl, ctx.api]);
 
-  if (loading || resolving) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
-        <Spin />
-      </div>
-    );
-  }
-
   if (!serverUrl) {
     return (
       <Card>{t('Please configure the OnlyOffice Document Server URL in plugin settings or block settings.')}</Card>
@@ -193,6 +249,14 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
 
   if (!resolvedFileUrl) {
     return <Card>{t('Please provide a file URL.')}</Card>;
+  }
+
+  if (loading || resolving || !docKey) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+        <Spin />
+      </div>
+    );
   }
 
   const { documentType: resolvedDocType, fileType: resolvedFileType } = resolveDocType(resolvedFileUrl);
@@ -251,83 +315,6 @@ function computeRelationKeyFieldOptions(ctx: any): { label: string; value: strin
       label: f.uiSchema?.title || f.name,
       value: f.name,
     }));
-}
-
-export class OnlyOfficeBlockModel extends CollectionBlockModel {
-  static scene = BlockSceneEnum.one;
-  collectionRequired = false;
-
-  createResource(ctx, params) {
-    return ctx.createResource(SingleRecordResource);
-  }
-
-  getCurrentRecord() {
-    return this.resource?.getData?.() || null;
-  }
-
-  protected defaultBlockTitle() {
-    const params = this.getStepParams('resourceSettings', 'init');
-    return params?.dataSourceKey ? super.defaultBlockTitle() : 'OnlyOffice';
-  }
-
-  onInit(options: any): void {
-    if (!this.getStepParams('resourceSettings', 'init')) {
-      this.setStepParams('resourceSettings', 'init', {});
-    }
-    super.onInit(options);
-
-    this.setDecoratorProps({
-      className: [this.decoratorProps.className, onlyofficeCardClass].filter(Boolean).join(' '),
-    });
-
-    const model = this;
-    const t = (key: string) => model.context.t?.(key) || key;
-
-    // ctx.record meta
-    const recordMeta: PropertyMetaFactory = async () => {
-      const ctxCollection = model.context.collection || (model.context as any).collection;
-      if (ctxCollection?.name) {
-        return buildRecordMeta(
-          () => ctxCollection,
-          t('Current record'),
-          (c) => inferRecordRef(c),
-        );
-      }
-      return null;
-    };
-    recordMeta.title = t('Current record');
-    recordMeta.hasChildren = true;
-
-    this.context.defineProperty('record', {
-      get: () => this.getCurrentRecord(),
-      cache: false,
-      meta: recordMeta,
-    });
-
-    this.context.defineProperty('onlyoffice', {
-      get: () => ({
-        get editorId() {
-          return `onlyoffice-${this.uid}`;
-        },
-        get editor() {
-          return (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
-        },
-        get isReady() {
-          return !!(window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
-        },
-        showMessage(msg: string) {
-          const inst = (window as any).DocEditor?.instances?.[`onlyoffice-${this.uid}`];
-          inst?.showMessage(msg);
-        },
-      }),
-    });
-  }
-
-  renderComponent() {
-    const params = this.getResourceSettingsInitParams();
-    const collectionName = params?.collectionName || null;
-    return <OnlyOfficeEditor uid={this.uid} collectionName={collectionName} {...this.props} />;
-  }
 }
 
 OnlyOfficeBlockModel.registerFlow({
