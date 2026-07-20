@@ -15,31 +15,6 @@ import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import { runCallbackScript } from './callbackScriptRunner';
 
-/**
- * 从请求上下文获取完整的 origin（scheme + host + port）。
- * 优先取反向代理头（x-forwarded-proto / x-forwarded-host），
- * 兼容 Koa 原生的 ctx.protocol / ctx.host。
- */
-function getRequestOrigin(ctx: any): string {
-  const protocol = ctx.headers?.['x-forwarded-proto'] || ctx.protocol || ctx.request?.protocol || 'http';
-  const host = ctx.headers?.['x-forwarded-host'] || ctx.host || ctx.request?.host || '';
-  return host ? `${protocol}://${host}` : '';
-}
-
-/**
- * 将相对 URL 补全为带 origin 的完整 URL。
- */
-function resolveFullUrl(fileUrl: string, ctx: any): string {
-  if (!fileUrl || /^https?:\/\//i.test(fileUrl)) {
-    return fileUrl;
-  }
-  const origin = getRequestOrigin(ctx);
-  if (!origin) {
-    return fileUrl;
-  }
-  return fileUrl.startsWith('/') ? `${origin}${fileUrl}` : `${origin}/${fileUrl}`;
-}
-
 export class PluginOnlyofficeServer extends Plugin {
   async afterAdd() {}
 
@@ -85,14 +60,13 @@ export class PluginOnlyofficeServer extends Plugin {
       name: 'onlyoffice',
       actions: {
         async getKey(ctx, next) {
-          const { fileUrl: rawFileUrl } = ctx.action?.params?.values || {};
+          const { fileUrl: fileUrl } = ctx.action?.params?.values || {};
 
-          if (!rawFileUrl) {
+          if (!fileUrl) {
             ctx.throw(400, ctx.t('fileUrl is required for key generation'));
             return;
           }
 
-          const fileUrl = resolveFullUrl(rawFileUrl, ctx);
           const lockKey = `onlyoffice:${fileUrl}`;
 
           ctx.logger?.info?.(`[OnlyOffice getKey] Acquiring lock for fileUrl=${fileUrl}`);
@@ -434,15 +408,7 @@ export class PluginOnlyofficeServer extends Plugin {
 
   async afterDisable() {}
 
-  async beforeRemove() {
-    const collectionNames = ['onlyofficeSettings', 'onlyofficeDocumentKeys'];
-    for (const name of collectionNames) {
-      const collection = this.db.getCollection(name);
-      if (collection) {
-        await collection.removeFromDb();
-      }
-    }
-  }
+  async beforeRemove() {}
 
   async remove() {}
 }

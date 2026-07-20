@@ -16,6 +16,7 @@ import {
   createCurrentRecordMetaFactory,
   createRecordResolveOnServerWithLocal,
   type PropertyMetaFactory,
+  type Collection,
 } from '@nocobase/flow-engine';
 import { css } from '@emotion/css';
 import { Card, Spin, message } from 'antd';
@@ -52,7 +53,7 @@ export class OnlyOfficeBlockModel extends CollectionBlockModel {
   /**
    * 只展示存在可选的 relationKeyField（obo → file template）的 collection
    */
-  static filterCollection(collection: any) {
+  static filterCollection(collection: Collection) {
     if (!super.filterCollection(collection)) {
       return false;
     }

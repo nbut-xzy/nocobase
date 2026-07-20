@@ -8,11 +8,21 @@
  */
 
 import { Plugin } from '@nocobase/client';
-import models from './models';
+import { OnlyOfficeBlockModel } from '../client-v2/models/OnlyOfficeBlockModel';
+import OnlyOfficeSettingsPage from '../client-v2/pages/OnlyOfficeSettingsPage';
 
 export class PluginOnlyofficeClient extends Plugin {
   async load() {
-    this.flowEngine.registerModels(models);
+    this.flowEngine.registerModels({
+      OnlyOfficeBlockModel,
+    });
+
+    this.pluginSettingsManager.add('onlyoffice', {
+      title: this.t('OnlyOffice'),
+      icon: 'FileTextOutlined',
+      Component: OnlyOfficeSettingsPage,
+      sort: -1,
+    });
   }
 }
 
