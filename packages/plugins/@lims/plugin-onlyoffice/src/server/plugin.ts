@@ -253,11 +253,12 @@ export class PluginOnlyofficeServer extends Plugin {
 
             const { fileUrl, uiSchemaBlockUid, collectionName, recordId } = keyRecord;
 
-            // Step 3: 从 flowModels 读取回调配置（v2 区块配置存储在 flowModels 的 stepParams 中）
+            // Step 3: 读取回调配置（区块配置存储在 flowModels 的 stepParams 中）
             const flowModelsRepo = ctx.db.getRepository('flowModels');
             const flowModel = await flowModelsRepo.findOne({ filterByTk: uiSchemaBlockUid });
             const blockOptions = flowModel?.options || {};
             const onlyofficeSettings = blockOptions?.stepParams?.onlyofficeBlockSettings?.editOnlyOffice || {};
+
             const { preScript, postScript, relationKeyField } = onlyofficeSettings;
 
             // Step 4: 查询原始记录
