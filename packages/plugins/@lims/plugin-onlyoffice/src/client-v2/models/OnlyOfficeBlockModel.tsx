@@ -49,6 +49,16 @@ export class OnlyOfficeBlockModel extends CollectionBlockModel {
   static scene = BlockSceneEnum.one;
   collectionRequired = false;
 
+  /**
+   * 只展示存在可选的 relationKeyField（obo → file template）的 collection
+   */
+  static filterCollection(collection: any) {
+    if (!super.filterCollection(collection)) {
+      return false;
+    }
+    return hasRelationKeyField(collection);
+  }
+
   createResource(ctx, params) {
     return ctx.createResource(SingleRecordResource);
   }
@@ -297,14 +307,28 @@ const OnlyOfficeEditor = observer((props: OnlyOfficeEditorProps) => {
 OnlyOfficeEditor.displayName = 'OnlyOfficeEditor';
 
 /**
+ * 判断一个 collection 是否至少有一个合法的 relationKeyField
+ * （interface === 'obo' 且 targetCollection.template === 'file'）
+ */
+function hasRelationKeyField(collection: any): boolean {
+  if (!collection?.getFields) return false;
+  return collection.getFields().some((f: any) => {
+    const iface = f.interface || f.options?.interface;
+    if (iface !== 'obo') return false;
+    const targetCol = f.targetCollection;
+    return targetCol?.template === 'file' || targetCol?.options?.template === 'file';
+  });
+}
+
+/**
  * 计算"文件引用字段"的可选项：
  * 过滤当前 collection 中 interface === 'obo'（belongsTo）且目标表 template === 'file' 的字段
  */
 function computeRelationKeyFieldOptions(ctx: any): { label: string; value: string }[] {
   const collection = ctx.model?.context?.collection;
-  if (!collection) return [];
-  const fields = collection.getFields();
-  return fields
+  if (!collection || !hasRelationKeyField(collection)) return [];
+  return collection
+    .getFields()
     .filter((f: any) => {
       const iface = f.interface || f.options?.interface;
       if (iface !== 'obo') return false;

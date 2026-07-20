@@ -419,7 +419,7 @@ export class PluginOnlyofficeServer extends Plugin {
       // Step 5: 更新原始记录的文件引用字段
       const originalRepo = ctx.db.getRepository(collectionName);
       await originalRepo.update({
-        values: { [relationKeyField]: newFileRecord.id },
+        values: { [relationKeyField]: newFileRecord },
         filter: { id: recordId },
       });
     } finally {
