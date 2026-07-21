@@ -1,6 +1,6 @@
 {
   "name": "@lims/plugin-onlyoffice",
-  "version": "2.1.25",
+  "version": "1.0.0",
   "main": "dist/server/index.js",
   "displayName": "Block: OnlyOffice",
   "displayName.zh-CN": "区块：OnlyOffice",
