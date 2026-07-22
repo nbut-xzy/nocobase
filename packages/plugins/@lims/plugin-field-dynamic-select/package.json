@@ -1,0 +1,16 @@
+{
+  "name": "@lims/plugin-field-dynamic-select",
+  "version": "0.1.0",
+  "main": "dist/server/index.js",
+  "displayName": "Dynamic Select",
+  "displayName.zh-CN": "动态下拉选择",
+  "description": "A multi-select dropdown whose options dynamically come from a sub-table field on the same form.",
+  "description.zh-CN": "下拉多选框，选项动态来自同一表单中的子表格字段，对象字段可配置显示字段",
+  "dependencies": {},
+  "peerDependencies": {
+    "@nocobase/client": "2.x",
+    "@nocobase/client-v2": "2.x",
+    "@nocobase/server": "2.x",
+    "@nocobase/test": "2.x"
+  }
+}
