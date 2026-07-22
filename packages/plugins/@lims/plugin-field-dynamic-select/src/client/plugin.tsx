@@ -8,11 +8,13 @@
  */
 
 import { Plugin } from '@nocobase/client';
-import models from './models';
+import { DynamicSelectFieldModel } from '../client-v2/models/DynamicSelectFieldModel';
 
 export class PluginFieldDynamicSelectClient extends Plugin {
   async load() {
-    this.flowEngine.registerModels(models);
+    this.flowEngine.registerModels({
+      DynamicSelectFieldModel,
+    });
   }
 }
 
