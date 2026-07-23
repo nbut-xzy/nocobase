@@ -25,7 +25,7 @@ import { Table, Form, Space, Button, Tooltip } from 'antd';
 import { css } from '@emotion/css';
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { useFlowModel } from '@nocobase/flow-engine';
+import { useFlowModel, useFlowEngine } from '@nocobase/flow-engine';
 import { getSubTableRowIdentity, normalizeSubTableRows } from './rowIdentity';
 
 type NamePath = Array<string | number>;
@@ -149,11 +149,14 @@ export function SubTableAutoSizeField(props: any) {
     onResetFieldValue,
     // [AUTO-SIZE] new prop
     autoSizeField,
+    fieldDefaultValues,
   } = props;
 
   // [AUTO-SIZE] Form instance and guard ref
   const form = Form.useFormInstance();
   const isAdjustingRef = useRef(false);
+
+  const engine = useFlowEngine();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [currentPageSize, setCurrentPageSize] = useState(pageSize);
@@ -200,6 +203,61 @@ export function SubTableAutoSizeField(props: any) {
     }
   }, [applyValue, currentValue, rawCurrentValue]);
 
+  // [AUTO-SIZE] Default value helpers
+  // Sync: replace {index} with 1-based row number (visible immediately)
+  const applyFieldDefaultsSync = useCallback(
+    (newRow: any, rowIndex: number, columns: any[]) => {
+      if (!fieldDefaultValues || typeof fieldDefaultValues !== 'object') return;
+      columns.forEach((col: any) => {
+        const key = col.dataIndex;
+        if (!key) return;
+        const template = fieldDefaultValues[key];
+        if (!template || typeof template !== 'string') return;
+        newRow[key] = template.replace(/\{index\}/g, String(rowIndex + 1));
+      });
+    },
+    [fieldDefaultValues],
+  );
+
+  // Async: resolve {{ ctx.X }} expressions via engine.context.resolveJsonTemplate()
+  // Reads current cell value (which already has {index} replaced), not the original template,
+  // to avoid overwriting the {index} replacement.
+  const resolveCtxVariablesForRow = useCallback(
+    async (rowIndex: number) => {
+      if (!fieldDefaultValues || !engine?.context?.resolveJsonTemplate) return;
+
+      const current = normalizeSubTableRows(getCurrentValue() || []);
+      if (rowIndex >= current.length) return;
+      const row = current[rowIndex];
+
+      const updates: Record<string, any> = {};
+
+      for (const key of Object.keys(fieldDefaultValues)) {
+        const cellValue = row[key];
+        if (typeof cellValue !== 'string') continue;
+        if (!/\{\{\s*ctx\./.test(cellValue)) continue;
+
+        try {
+          const resolved = await engine.context.resolveJsonTemplate(cellValue);
+          if (resolved !== cellValue) {
+            updates[key] = resolved;
+          }
+        } catch {
+          // Keep original value on failure
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const latest = normalizeSubTableRows(getCurrentValue() || []);
+        if (rowIndex < latest.length) {
+          latest[rowIndex] = { ...latest[rowIndex], ...updates };
+          onChange?.(normalizeSubTableRows(latest));
+        }
+      }
+    },
+    [fieldDefaultValues, engine, getCurrentValue, onChange],
+  );
+
   // [AUTO-SIZE] Core: adjust row count
   const adjustRowCount = useCallback(
     (targetCount: number) => {
@@ -208,13 +266,22 @@ export function SubTableAutoSizeField(props: any) {
       if (k === current.length) return;
       if (k > current.length) {
         const diff = k - current.length;
-        const emptyRows = Array.from({ length: diff }, () => ({ __is_new__: true }));
+        const emptyRows = Array.from({ length: diff }, (_, i) => {
+          const newRow: any = { __is_new__: true };
+          applyFieldDefaultsSync(newRow, current.length + i, columns);
+          return newRow;
+        });
         onChange?.(normalizeSubTableRows([...current, ...emptyRows]));
+
+        // Async resolve ctx variables for each new row
+        for (let i = 0; i < diff; i++) {
+          resolveCtxVariablesForRow(current.length + i);
+        }
       } else {
         onChange?.(normalizeSubTableRows(current.slice(0, k)));
       }
     },
-    [getCurrentValue, onChange],
+    [getCurrentValue, onChange, applyFieldDefaultsSync, resolveCtxVariablesForRow, columns],
   );
 
   // [AUTO-SIZE] Watch for field A value changes
@@ -276,19 +343,30 @@ export function SubTableAutoSizeField(props: any) {
     } as any;
   }, [currentPage, currentPageSize, currentValue.length, t]);
 
-  // Add new row (unchanged)
+  // Add new row
   const handleAdd = () => {
     if (allowCreate === false) return;
 
-    const newRow: any = {
-      __is_new__: true,
-    };
+    const currentValues = getLatestValue();
+    const newRow: any = { __is_new__: true };
+    const nextIndex = currentValues.length;
+
+    // Sync: apply default values ({index} replacement)
+    applyFieldDefaultsSync(newRow, nextIndex, columns);
+
+    // Set undefined for columns without default value
     columns.forEach((col: any) => {
-      newRow[col.dataIndex] = undefined;
+      if (!(col.dataIndex in newRow)) {
+        newRow[col.dataIndex] = undefined;
+      }
     });
-    const newValue = [...getLatestValue(), newRow];
+
+    const newValue = [...currentValues, newRow];
     setCurrentPage(Math.ceil(newValue.length / currentPageSize));
     applyValue(newValue);
+
+    // Async: resolve ctx variables
+    resolveCtxVariablesForRow(nextIndex);
   };
 
   // Delete row (unchanged)

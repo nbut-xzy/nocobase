@@ -3,5 +3,9 @@
   "Auto-size settings": "Auto-size settings",
   "Row count field": "Row count field",
   "Select an integer field to control row count": "Select an integer field to control row count",
-  "None (manual control)": "None (manual control)"
+  "None (manual control)": "None (manual control)",
+  "Field default values": "Field default values",
+  "Set default value templates for subtable fields": "Set default value templates for subtable fields",
+  "Supported syntax: {index} = row number (1-based); {{ ctx.X }} = context variable": "Supported syntax: {index} = row number (1-based); {{ ctx.X }} = context variable",
+  "e.g. DEFAULT-{index} or {{ ctx.formValues.field }}": "e.g. DEFAULT-{index} or {{ ctx.formValues.field }}"
 }

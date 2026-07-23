@@ -59,6 +59,7 @@ export class SubTableAutoSizeFieldModel extends SubTableFieldModel {
   render() {
     const autoSizeParams = this.getStepParams?.('subTableAutoSizeSettings', 'autoSizeField');
     const autoSizeField = autoSizeParams?.autoSizeField || null;
+    const fieldDefaultValues = this.props.fieldDefaultValues || {};
 
     if (!autoSizeField) {
       // No auto-size configured — fall back to standard SubTableField behavior
@@ -83,6 +84,7 @@ export class SubTableAutoSizeFieldModel extends SubTableFieldModel {
       <SubTableAutoSizeField
         {...this.props}
         autoSizeField={autoSizeField}
+        fieldDefaultValues={fieldDefaultValues}
         columns={columns}
         components={components}
         isConfigMode={isConfigMode}
@@ -143,6 +145,49 @@ SubTableAutoSizeFieldModel.registerFlow({
       },
       handler(ctx: any, params: any) {
         ctx.model.setProps({ autoSizeField: params.autoSizeField || null });
+      },
+    },
+    fieldDefaultValues: {
+      title: tExpr('Field default values'),
+      uiSchema(ctx: any) {
+        const columns = (ctx.model.getColumns?.() || []) as any[];
+        const properties: Record<string, any> = {};
+
+        columns.forEach((col: any) => {
+          const name = String(col.dataIndex || col.props?.dataIndex || '');
+          if (!name || name === 'delete') return;
+          let title = col.props?.title || col.title || name;
+          console.log('col.props.title:', col.props?.title, 'col.title:', col.title, 'name:', name);
+          // Guard: col.props.title may be a React element (e.g. Tooltip wrapper)
+          // that carries engine references and breaks JSON.stringify.
+          if (typeof title !== 'string') {
+            title = String(name);
+          }
+          properties[name] = {
+            type: 'string',
+            title,
+            'x-decorator': 'FormItem',
+            'x-component': 'FlowSettingsVariableTextArea',
+            'x-component-props': {
+              placeholder: String(ctx.t('e.g. DEFAULT-{index} or {{ ctx.formValues.field }}')),
+              rows: 2,
+            },
+          };
+        });
+
+        return properties;
+      },
+      defaultParams: () => ({}),
+      handler(ctx: any, params: any) {
+        const cleaned: Record<string, any> = {};
+        if (params && typeof params === 'object') {
+          Object.keys(params).forEach((key) => {
+            if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+              cleaned[key] = params[key];
+            }
+          });
+        }
+        ctx.model.setProps({ fieldDefaultValues: cleaned });
       },
     },
   },

@@ -3,5 +3,9 @@
   "Auto-size settings": "动态行数设置",
   "Row count field": "行数控制字段",
   "Select an integer field to control row count": "选择一个整数字段来控制子表格行数",
-  "None (manual control)": "无（手动控制）"
+  "None (manual control)": "无（手动控制）",
+  "Field default values": "字段默认值",
+  "Set default value templates for subtable fields": "设置子表格字段的默认值模板",
+  "Supported syntax: {index} = row number (1-based); {{ ctx.X }} = context variable": "支持语法：{index} = 行号（从1开始）；{{ ctx.X }} = 上下文变量",
+  "e.g. DEFAULT-{index} or {{ ctx.formValues.field }}": "例如：DEFAULT-{index} 或 {{ ctx.formValues.field }}"
 }
