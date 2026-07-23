@@ -1,4 +1,14 @@
 {
   "Dynamic Select": "动态下拉选择",
-  "Select from sub-table": "从子表格中选择"
+  "Select from sub-table": "从子表格中选择",
+  "Dynamic Select Settings": "动态下拉设置",
+  "Field mapping": "字段映射",
+  "Source field": "来源字段",
+  "Select a subtable field": "选择子表格字段",
+  "Label field": "显示字段",
+  "Select source field first": "请先选择来源字段",
+  "Value field": "值字段",
+  "Select All": "全选",
+  "Deselect All": "取消全选",
+  "Show Select All": "显示全选按钮"
 }

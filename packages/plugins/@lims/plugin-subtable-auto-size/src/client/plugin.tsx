@@ -8,9 +8,14 @@
  */
 
 import { Plugin } from '@nocobase/client';
+import { SubTableAutoSizeFieldModel } from '../client-v2/models/SubTableAutoSizeFieldModel';
 
 export class PluginSubtableAutoSizeClient extends Plugin {
-  async load() {}
+  async load() {
+    this.flowEngine.registerModels({
+      SubTableAutoSizeFieldModel,
+    });
+  }
 }
 
 export default PluginSubtableAutoSizeClient;

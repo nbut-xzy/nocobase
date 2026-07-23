@@ -18,7 +18,8 @@
 
 import { SettingOutlined } from '@ant-design/icons';
 import { DragEndEvent } from '@dnd-kit/core';
-import { AddSubModelButton, DndProvider, FlowSettingsButton, tExpr, useFlowEngine } from '@nocobase/flow-engine';
+import { AddSubModelButton, DndProvider, FlowSettingsButton, useFlowEngine } from '@nocobase/flow-engine';
+import { tExpr } from '../locale';
 import React from 'react';
 import { FormItemModel, SubTableFieldModel } from '@nocobase/client-v2';
 import { SubTableAutoSizeField } from './SubTableAutoSizeField';

@@ -1,4 +1,14 @@
 {
   "Dynamic Select": "Dynamic Select",
-  "Select from sub-table": "Select from sub-table"
+  "Select from sub-table": "Select from sub-table",
+  "Dynamic Select Settings": "Dynamic Select Settings",
+  "Field mapping": "Field mapping",
+  "Source field": "Source field",
+  "Select a subtable field": "Select a subtable field",
+  "Label field": "Label field",
+  "Select source field first": "Select source field first",
+  "Value field": "Value field",
+  "Select All": "Select All",
+  "Deselect All": "Deselect All",
+  "Show Select All": "Show Select All"
 }

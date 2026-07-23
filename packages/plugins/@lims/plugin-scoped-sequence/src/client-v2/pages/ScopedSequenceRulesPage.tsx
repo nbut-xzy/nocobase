@@ -435,7 +435,7 @@ export default function ScopedSequenceRulesPage() {
           >
             <SequenceRulesConfigureField
               name="patterns"
-              title={t('Encoding rules')}
+              title={t('Encoding Rules')}
               namePath={['patterns']}
               schema={{
                 required: true,

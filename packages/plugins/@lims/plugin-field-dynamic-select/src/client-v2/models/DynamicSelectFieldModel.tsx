@@ -7,8 +7,9 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { EditableItemModel, tExpr } from '@nocobase/flow-engine';
-import { Select } from 'antd';
+import { EditableItemModel } from '@nocobase/flow-engine';
+import { tExpr, useT } from '../locale';
+import { Button, Select } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FieldModel } from '@nocobase/client-v2';
 
@@ -34,16 +35,19 @@ interface DynamicSelectConfig {
   labelField: string;
   valueField: string;
   sourceField: string;
+  showSelectAll: boolean;
 }
 
 function resolveConfig(model: any): DynamicSelectConfig {
   // Read from persisted step params first (survive page reload), fall back to runtime props
   const stepParams = model?.getStepParams?.('dynamicSelectSettings', 'fieldMapping') || {};
+  const showSelectAllParams = model?.getStepParams?.('dynamicSelectSettings', 'showSelectAll') || {};
   const props = model?.props || {};
   return {
     labelField: stepParams.labelField || props.labelField || '',
     valueField: stepParams.valueField || props.valueField || '',
     sourceField: stepParams.sourceField || props.sourceField || '',
+    showSelectAll: showSelectAllParams.showSelectAll ?? props.showSelectAll ?? true,
   };
 }
 
@@ -51,6 +55,7 @@ function resolveConfig(model: any): DynamicSelectConfig {
 
 function DynamicSelectRenderer({ model }: { model: any }) {
   const [options, setOptions] = useState<{ label: string; value: unknown }[]>([]);
+  const t = useT();
 
   const config: DynamicSelectConfig = useMemo(() => {
     return resolveConfig(model);
@@ -59,9 +64,11 @@ function DynamicSelectRenderer({ model }: { model: any }) {
 
   // Strip DynamicSelect-specific config keys before spreading to DOM
   const selectProps = useMemo(() => {
-    const { labelField, valueField, sourceField, ...rest } = model.props || {};
+    const { labelField, valueField, sourceField, showSelectAll, ...rest } = model.props || {};
     return rest;
   }, [model.props]);
+
+  const showSelectAll: boolean = config.showSelectAll;
 
   const form = model.context?.blockModel?.context?.form;
   const emitter = model.context?.blockModel?.emitter;
@@ -99,11 +106,46 @@ function DynamicSelectRenderer({ model }: { model: any }) {
     };
   }, [emitter, config.sourceField, buildOptions]);
 
+  // ─── Select-all handler ───
+
+  const currentValue: unknown[] = Array.isArray(model.props.value) ? model.props.value : [];
+  const allSelected = options.length > 0 && options.every((o) => currentValue.includes(o.value));
+
+  const handleSelectAll = useCallback(() => {
+    if (allSelected) {
+      model.props.onChange?.([]);
+    } else {
+      model.props.onChange?.(options.map((o) => o.value));
+    }
+  }, [allSelected, options, model]);
+
+  // ─── Dropdown render with select-all button ───
+
+  const dropdownRender = useCallback(
+    (menu: React.ReactNode) => {
+      if (!showSelectAll) return menu;
+      return (
+        <>
+          <div style={{ padding: '4px 8px', borderBottom: '1px solid #f0f0f0' }}>
+            <Button type="link" size="small" onClick={handleSelectAll}>
+              {allSelected ? t('Deselect All') : t('Select All')}
+            </Button>
+          </div>
+          {menu}
+        </>
+      );
+    },
+    [showSelectAll, allSelected, handleSelectAll, t],
+  );
+
+  // ─── Render ───
+
   return (
     <Select
       {...selectProps}
       mode="multiple"
       options={options}
+      dropdownRender={dropdownRender}
       allowClear
       placeholder={model.translate('Select from sub-table')}
     />
@@ -218,6 +260,17 @@ DynamicSelectFieldModel.registerFlow({
           labelField: params.labelField || '',
           valueField: params.valueField || '',
         });
+      },
+    },
+    showSelectAll: {
+      title: tExpr('Show Select All'),
+      uiMode: { type: 'switch', key: 'showSelectAll' },
+      defaultParams(ctx: any) {
+        const stepParams = ctx.model?.getStepParams?.('dynamicSelectSettings', 'showSelectAll') || {};
+        const props = ctx.model.props || {};
+        return {
+          showSelectAll: stepParams.showSelectAll ?? props.showSelectAll ?? true,
+        };
       },
     },
   },
