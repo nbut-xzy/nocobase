@@ -41,8 +41,8 @@ function resolveConfig(model: any): DynamicSelectConfig {
   const stepParams = model?.getStepParams?.('dynamicSelectSettings', 'fieldMapping') || {};
   const props = model?.props || {};
   return {
-    labelField: stepParams.labelField || props.labelField || 'id',
-    valueField: stepParams.valueField || props.valueField || 'id',
+    labelField: stepParams.labelField || props.labelField || '',
+    valueField: stepParams.valueField || props.valueField || '',
     sourceField: stepParams.sourceField || props.sourceField || '',
   };
 }
@@ -208,15 +208,15 @@ DynamicSelectFieldModel.registerFlow({
         const props = ctx.model.props || {};
         return {
           sourceField: stepParams.sourceField || props.sourceField || '',
-          labelField: stepParams.labelField || props.labelField || 'id',
-          valueField: stepParams.valueField || props.valueField || 'id',
+          labelField: stepParams.labelField || props.labelField || '',
+          valueField: stepParams.valueField || props.valueField || '',
         };
       },
       handler(ctx: any, params: any) {
         ctx.model.setProps({
           sourceField: params.sourceField || '',
-          labelField: params.labelField || 'id',
-          valueField: params.valueField || 'id',
+          labelField: params.labelField || '',
+          valueField: params.valueField || '',
         });
       },
     },
